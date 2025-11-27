@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from "../services/supabaseClient";
+import { supabase } from '../services/supabaseClient';
 
 const AuthContext = createContext();
 
@@ -7,16 +7,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Helper to get the user's role from the 'profiles' table
-  const fetchRole = async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-    if (data) setRole(data.role);
-  };
 
   useEffect(() => {
     // 1. Check active session
@@ -45,7 +35,22 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const value = { user, role, loading };
+  const fetchRole = async (userId) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    if (data) setRole(data.role);
+  };
+
+  // --- NEW LOGOUT FUNCTION ---
+  const logout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // Add 'logout' to the value object so other components can use it
+  const value = { user, role, loading, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
