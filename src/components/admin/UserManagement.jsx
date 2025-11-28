@@ -83,7 +83,7 @@ const UserManagement = ({
             <input 
               type="text" 
               placeholder="Search..." 
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 text-sm rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -154,8 +154,8 @@ const UserManagement = ({
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 hover:bg-blue-50" />
-                        <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 hover:bg-red-50" />
+                        <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
+                        <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
                       </div>
                     </td>
                   </tr>
@@ -179,8 +179,8 @@ const UserManagement = ({
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 hover:bg-blue-50" />
-                    <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 hover:bg-red-50" />
+                    <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
+                    <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
                   </div>
                 </div>
                 

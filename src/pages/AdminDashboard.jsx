@@ -19,6 +19,7 @@ import {
   MapPin
 } from "lucide-react";
 import UserManagement from "../components/admin/UserManagement";
+import AlertsManagement from "../components/admin/AlertsManagement";
 
 const AdminDashboard = () => {
   const { user: currentUser, logout } = useAuth(); 
@@ -243,7 +244,7 @@ const AdminDashboard = () => {
               <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
                 <Menu className="w-6 h-6" />
               </button>
-              <h1 className="text-xl font-bold text-gray-800">
+              <h1 className="lg:text-xl font-bold text-gray-800 sm:text-2xl">
                 {activeModule === "analytics" && "Dashboard Overview"}
                 {activeModule === "users" && "Resident Management"}
                 {activeModule === "inbox" && "Inbox & Messages"}
@@ -293,11 +294,9 @@ const AdminDashboard = () => {
              </div>
           )}
 
-          {/* ALERTS VIEW */}
+          {/* ALERTS MANAGEMENT VIEW */}
           {activeModule === "alerts" && (
-             <div className="bg-white p-10 rounded-xl shadow-sm text-center">
-                <h2 className="text-lg font-semibold text-gray-700">Alert Component Goes Here</h2>
-             </div>
+             <AlertsManagement />
           )}
 
           {/* MAP VIEW */}
