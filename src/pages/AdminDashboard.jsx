@@ -16,22 +16,15 @@ import {
   Trash2,
   MessagesSquare,
   Megaphone,
-  MapPin // Added for mapping context
+  MapPin
 } from "lucide-react";
-
-// Placeholder for your Logo
-// import DSRM_LOGO from "../assets/DSRM.png"; 
-
-// Components (Ensure these exist or comment them out if you haven't built them yet)
-// import StatsCard from "../components/admin/StatsCard"; 
-// import BarChart from "../components/admin/BarChart";
-// import DataMapping from "../components/admin/DataMapping"; 
+import UserManagement from "../components/admin/UserManagement";
 
 const AdminDashboard = () => {
-  const { user: currentUser, logout } = useAuth(); // Renamed to currentUser to avoid clash with user list
+  const { user: currentUser, logout } = useAuth(); 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeModule, setActiveModule] = useState("analytics");
-  const [activeTab, setActiveTab] = useState("resident"); // Changed from instructor/student
+  const [activeTab, setActiveTab] = useState("resident"); 
 
   // Data State
   const [users, setUsers] = useState([]);
@@ -42,7 +35,6 @@ const AdminDashboard = () => {
     try {
       await logout();
       toast.info("Logged out successfully");
-      // The ProtectedRoute will automatically detect the user is gone and redirect to Login
     } catch (error) {
       toast.error("Error logging out");
       console.error(error);
@@ -52,7 +44,7 @@ const AdminDashboard = () => {
   const getAuthHeaders = useCallback(() => {
     const token = currentUser.token;
     if (!token) {
-      logout(); // or handle expired token
+      logout(); 
       return {};
     }
     return {
@@ -69,25 +61,87 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     setIsLoading(true);
-    // Supabase: Select all profiles
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      // select(*) will automatically pull the new 'phone' column if you added it to DB
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      toast.error("Failed to fetch users: " + error.message);
-    } else {
-      setUsers(data);
+      if (error) throw error;
+
+      setUsers(data || []);
+      
+    } catch (error) {
+      console.error("Error fetching users:", error.message);
+      toast.error("Could not load users. Check database policies.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  // 2. FILTER LOGIC (Client Side)
+  const handleSaveUser = async (userData, isEditMode) => {
+    setIsLoading(true);
+    try {
+      // --- FIX: TRIM WHITESPACE ---
+      // This prevents "kim@gmail.com " (with space) from causing an error
+      const cleanedEmail = userData.email ? userData.email.trim() : "";
+
+      if (isEditMode) {
+        // [Existing Update Logic - Keep this as is]
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: userData.full_name,
+            role: userData.role,
+            address_block: userData.address_block,
+            address_lot: userData.address_lot,
+            phone: userData.phone
+          })
+          .eq('id', userData.id);
+  
+        if (error) throw error;
+        toast.success("User updated successfully");
+
+      } else {
+        // --- NEW: CREATE USER VIA EDGE FUNCTION ---
+        
+        if (!cleanedEmail) throw new Error("Email is required");
+
+        // Call the Edge Function we just deployed
+        const { data, error } = await supabase.functions.invoke('create-user', {
+          body: {
+            email: cleanedEmail,
+            password: userData.password,
+            full_name: userData.full_name,
+            role: userData.role,
+            phone: userData.phone
+          }
+        });
+
+        // Check if the function returned an error
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+        
+        toast.success("User created successfully!");
+        // Note: You remain logged in as Admin! 🎉
+      }
+  
+      fetchUsers(); // Refresh list
+    } catch (error) {
+      console.error(error);
+      toast.error("Error saving user: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 2. FILTER LOGIC
   const filteredUsers = users.filter((u) => {
     const matchesTab = activeTab === "all" ? true : u.role === activeTab;
     const matchesSearch = u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          u.email?.toLowerCase().includes(searchQuery.toLowerCase());
+                          u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.phone?.includes(searchQuery); // Search by phone too
     return matchesTab && matchesSearch;
   });
 
@@ -101,7 +155,7 @@ const AdminDashboard = () => {
       toast.error("Error deleting user");
     } else {
       toast.success("User deleted successfully");
-      fetchUsers(); // Refresh list
+      fetchUsers(); 
     }
   };
 
@@ -170,7 +224,7 @@ const AdminDashboard = () => {
 
         <div className="flex flex-col items-center space-y-2 mb-4">
           <button
-            onClick={handleLogout} // <--- Update this to use the new handler
+            onClick={handleLogout} 
             className="group flex justify-center items-center w-12 h-12 rounded-xl border border-gray-300 hover:bg-red-500 hover:border-red-500 transition-colors"
             title="Logout"
           >
@@ -215,90 +269,21 @@ const AdminDashboard = () => {
                   <h3 className="text-gray-500 text-sm font-medium">Total Residents</h3>
                   <p className="text-3xl font-bold text-gray-800 mt-2">{users.filter(u => u.role === 'resident').length}</p>
                </div>
-               {/* Add more stats cards here */}
             </div>
           )}
 
-          {/* USERS VIEW */}
+          {/* MANAGE USERS VIEW */}
           {activeModule === "users" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row justify-between gap-4">
-                  
-                  {/* Tabs */}
-                  <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-fit">
-                    <TabButton active={activeTab === "resident"} onClick={() => setActiveTab("resident")} label="Residents" />
-                    <TabButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admins" />
-                    <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All Users" />
-                  </div>
-
-                  {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input 
-                      type="text" 
-                      placeholder="Search name or email..." 
-                      className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-medium">
-                      <tr>
-                        <th className="px-6 py-3">Name</th>
-                        <th className="px-6 py-3">Role</th>
-                        <th className="px-6 py-3">Location</th>
-                        <th className="px-6 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {isLoading ? (
-                        <tr><td colSpan="4" className="p-6 text-center text-gray-500">Loading...</td></tr>
-                      ) : filteredUsers.length === 0 ? (
-                        <tr><td colSpan="4" className="p-6 text-center text-gray-500">No users found</td></tr>
-                      ) : (
-                        filteredUsers.map((u) => (
-                          <tr key={u.id} className="hover:bg-gray-50/50">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-sm">
-                                  {u.full_name ? u.full_name.charAt(0) : '?'}
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
-                                  <p className="text-xs text-gray-500">{u.email}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-                                ${u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
-                                {u.role}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">
-                              {u.address_block ? `Blk ${u.address_block} Lot ${u.address_lot}` : 'No Address'}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <button 
-                                onClick={() => handleDeleteUser(u.id)}
-                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            <UserManagement 
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              isLoading={isLoading}
+              filteredUsers={filteredUsers}
+              handleDeleteUser={handleDeleteUser}
+              handleSaveUser={handleSaveUser}
+            />
           )}
 
           {/* INBOX VIEW */}

@@ -8,48 +8,79 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // 1. Check active session
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        await fetchRole(session.user.id);
+  const fetchRole = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setRole(data.role);
+      } else {
+        // If data is missing but no error, default to resident
+        setRole('resident');
       }
-      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching role:", error.message);
+      // FALLBACK: Essential to prevent infinite loading screens
+      setRole('resident'); 
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    // 1. Initial Session Check
+    const getSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+
+        if (session?.user) {
+          setUser(session.user);
+          await fetchRole(session.user.id);
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error.message);
+      } finally {
+        // THE FIX: This runs 100% of the time, whether successful or failed
+        if (mounted) setLoading(false);
+      }
     };
 
     getSession();
 
-    // 2. Listen for login/logout events
+    // 2. Real-time Listener (Login/Logout events)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchRole(session.user.id);
+        setUser(session.user);
+        // Only fetch role if we don't have it yet (optimizes performance)
+        if (!role) await fetchRole(session.user.id);
       } else {
+        setUser(null);
         setRole(null);
       }
-      setLoading(false);
+      
+      // Ensure loading is off after any auth change
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []); // Remove dependencies to run only once on mount
 
-  const fetchRole = async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .single();
-    if (data) setRole(data.role);
-  };
-
-  // --- NEW LOGOUT FUNCTION ---
   const logout = async () => {
     await supabase.auth.signOut();
+    setRole(null);
+    setUser(null);
   };
 
-  // Add 'logout' to the value object so other components can use it
   const value = { user, role, loading, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
