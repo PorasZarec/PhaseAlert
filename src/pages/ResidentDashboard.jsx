@@ -8,6 +8,11 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import DSRM_LOGO from "../assets/DSRM.png";
 import BottomNav from "../components/resident/BottomNav";
+import CommunityNewsTab from "../components/resident/CommunityNewsTab";
+import MappingTab from "../components/resident/MappingTab";
+import CreateReportTab from "../components/resident/CreateReportTab";
+import MessagingTab from "../components/resident/MessagingTab";
+import SettingsTab from "../components/resident/SettingsTab";
 
 // --- HELPER: Safely get user details from Supabase object ---
 const getUserDisplayInfo = (user) => {
@@ -36,7 +41,7 @@ const ResidentDashboard = () => {
 
   // State
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState("news");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -149,37 +154,62 @@ const ResidentDashboard = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Dynamic Content based on Active Tab */}
-        <div className="space-y-6">
-          
-          {/* Example Content Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-             <h2 className="text-lg font-semibold text-gray-800 mb-4">
-               {activeTab === 'home' && "Community News"}
-               {activeTab === 'map' && "Phase Map"}
-               {activeTab === 'create' && "Create Incident Report"}
-               {activeTab === 'messages' && "Community Chat"}
-               {activeTab === 'settings' && "Settings"}
-             </h2>
-             
-             {loading ? (
-               <div className="flex flex-col items-center justify-center py-12">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-                 <p className="text-sm text-gray-500 mt-3">Syncing data...</p>
-               </div>
-             ) : (
-               <div className="h-48 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400">
-                 Content for {activeTab} goes here
-               </div>
-             )}
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+            <p className="text-sm text-gray-500 mt-3">Syncing data...</p>
           </div>
+        ) : (
+          <div className="space-y-6">
+            {/* News Tab Content */}
+            {activeTab === 'news' && (
+              <CommunityNewsTab 
+                activeTab={activeTab}
+                loading={loading}
+              />
+            )}
+            
+            {/* Map Tab Content */}
+            {activeTab === 'map' && (
+              <MappingTab 
+                activeTab={activeTab}
+                loading={loading}
+              />
+            )}
 
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
+            {/* Create Tab Content */}
+            {activeTab === 'create' && (
+              <CreateReportTab 
+                activeTab={activeTab}
+                loading={loading}
+              />
+            )}
 
-        </div>
+            {/* Message Tab Content */}
+            {activeTab === 'messages' && (
+              <MessagingTab 
+                activeTab={activeTab}
+                loading={loading}
+              />
+            )}
+
+            {/* Settings Tab Content */}
+            {activeTab === 'settings' && (
+              <SettingsTab 
+                activeTab={activeTab}
+                loading={loading}
+              />
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-100 text-red-700 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
+          
       </main>
 
       {/* Bottom Navigation */}
