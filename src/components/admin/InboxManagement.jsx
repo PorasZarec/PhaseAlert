@@ -23,7 +23,7 @@ const InboxManagement = () => {
   const previousScrollHeightRef = useRef(0); 
   const inputRef = useRef(null);
 
-  // 1. Initial Setup: Get User & Residents
+  // Initial Setup: Get User & Residents
   useEffect(() => {
     const setup = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -38,7 +38,7 @@ const InboxManagement = () => {
     setup();
   }, []);
 
-  // 2. Reset Context when switching tabs/users
+  // Reset Context when switching tabs/users
   useEffect(() => {
     setMessages([]);
     setPage(0);
@@ -51,7 +51,7 @@ const InboxManagement = () => {
     }, 100);
   }, [activeTab, selectedResident?.id]); 
 
-  // 3. Fetch Messages (Batching) - FIXED QUERY
+  // Fetch Messages (Batching)
   useEffect(() => {
     const fetchMessages = async () => {
       if (!currentUserId) return;
@@ -103,7 +103,7 @@ const InboxManagement = () => {
     fetchMessages();
   }, [page, activeTab, selectedResident?.id, currentUserId]); 
 
-  // 4. Realtime Subscription
+  // Realtime Subscription
   useEffect(() => {
     if (!currentUserId) return;
 
@@ -148,7 +148,7 @@ const InboxManagement = () => {
     return () => { supabase.removeChannel(channel); };
   }, [activeTab, selectedResident?.id, currentUserId]);
 
-  // 5. Handle Scroll (Load More Logic)
+  // Handle Scroll (Load More Logic)
   const handleScroll = () => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -159,7 +159,7 @@ const InboxManagement = () => {
     }
   };
 
-  // 6. Adjust Scroll Position after Loading Old Messages
+  // Adjust Scroll Position after Loading Old Messages
   useEffect(() => {
     if (page > 0 && scrollContainerRef.current) {
         const newScrollHeight = scrollContainerRef.current.scrollHeight;

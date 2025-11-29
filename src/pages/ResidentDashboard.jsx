@@ -5,8 +5,12 @@ import {
   User,
   Bell
 } from "lucide-react";
+
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner";
+
 import DSRM_LOGO from "../assets/DSRM.png";
+
 import BottomNav from "../components/resident/BottomNav";
 import CommunityNewsTab from "../components/resident/CommunityNewsTab";
 import MappingTab from "../components/resident/MappingTab";
@@ -48,8 +52,10 @@ const ResidentDashboard = () => {
   const handleLogout = async () => {
     try {
       await logout();
+      toast.info("Logged out successfully");
     } catch (error) {
-      console.error("Error logging out:", error);
+      toast.error("Error logging out");
+      console.error(error);
     }
   };
 
@@ -124,13 +130,11 @@ const ResidentDashboard = () => {
                       <div className="border-t border-gray-100 my-1"></div>
                       
                       <button
-                        onClick={() => {
-                          handleLogout();
-                          setIsProfileOpen(false);
-                        }}
+                        onClick={() => {handleLogout(); setIsProfileOpen(false);}}
                         className="w-full text-left px-5 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors font-medium"
                       >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut 
+                          className="w-4 h-4" />
                         Sign Out
                       </button>
                     </div>

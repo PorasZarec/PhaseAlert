@@ -21,6 +21,7 @@ import {
 import UserManagement from "../components/admin/UserManagement";
 import AlertsManagement from "../components/admin/AlertsManagement";
 import InboxManagement from "../components/admin/InboxManagement";
+import MapManagement from "../components/admin/MapManagement";
 
 const AdminDashboard = () => {
   const { user: currentUser, logout } = useAuth(); 
@@ -300,9 +301,8 @@ const AdminDashboard = () => {
 
           {/* MAP VIEW */}
           {activeModule === "map" && (
-             <div className="bg-white p-10 rounded-xl shadow-sm text-center">
-                <h2 className="text-lg font-semibold text-gray-700">Google Map Component Goes Here</h2>
-                <p className="text-gray-500">You will integrate the @react-google-maps/api logic here.</p>
+             <div className="bg-white p-4 rounded-xl shadow-sm text-center">
+                <MapManagement />
              </div>
           )}
 
