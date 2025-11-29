@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import UserManagement from "../components/admin/UserManagement";
 import AlertsManagement from "../components/admin/AlertsManagement";
+import InboxManagement from "../components/admin/InboxManagement";
 
 const AdminDashboard = () => {
   const { user: currentUser, logout } = useAuth(); 
@@ -137,7 +138,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // 2. FILTER LOGIC
+  // FILTER LOGIC
   const filteredUsers = users.filter((u) => {
     const matchesTab = activeTab === "all" ? true : u.role === activeTab;
     const matchesSearch = u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -146,7 +147,7 @@ const AdminDashboard = () => {
     return matchesTab && matchesSearch;
   });
 
-  // 3. DELETE LOGIC
+  // DELETE LOGIC
   const handleDeleteUser = async (userId) => {
     if(!window.confirm("Are you sure you want to delete this user?")) return;
 
@@ -289,9 +290,7 @@ const AdminDashboard = () => {
 
           {/* INBOX VIEW */}
           {activeModule === "inbox" && (
-             <div className="bg-white p-10 rounded-xl shadow-sm text-center">
-                <h2 className="text-lg font-semibold text-gray-700">Inbox Component Goes Here</h2>
-             </div>
+             <InboxManagement />
           )}
 
           {/* ALERTS MANAGEMENT VIEW */}
