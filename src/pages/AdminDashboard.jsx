@@ -251,7 +251,7 @@ const AdminDashboard = () => {
                 {activeModule === "users" && "Resident Management"}
                 {activeModule === "inbox" && "Inbox & Messages"}
                 {activeModule === "alerts" && "Alerts & Announcements"}
-                {activeModule === "map" && "Village Map & Alerts"}
+                {activeModule === "map" && "Village Mapping"}
               </h1>
             </div>
             <div className="flex items-center gap-2">

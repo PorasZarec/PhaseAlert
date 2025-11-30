@@ -128,7 +128,7 @@ const MapManagement = () => {
   return (
     <div className="relative h-full flex flex-col gap-4">
       
-      {/* --- ACTION HEADER (Responsive) --- */}
+      {/* --- ACTION HEADER --- */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -174,11 +174,15 @@ const MapManagement = () => {
           <Polygon
             paths={VILLAGE_BOUNDARY}
             options={{
-              fillColor: "#ea580c", // Orange-600
+              fillColor: "#ea580c", // Orange-600 of tailwind 
               fillOpacity: 0.1,
               strokeColor: "#ea580c",
               strokeOpacity: 0.8,
               strokeWeight: 2,
+              clickable: false, 
+              // Optional: Disable dragging/editing to be safe
+              draggable: false, 
+              editable: false 
             }}
           />
 
@@ -188,7 +192,7 @@ const MapManagement = () => {
               key={resident.id}
               position={{ lat: resident.latitude, lng: resident.longitude }}
               onClick={() => setSelectedResident(resident)}
-              icon={{ url: "/red-pin.png", scaledSize: new window.google.maps.Size(23, 30) }}
+              icon={{ url: "/black-pin.png", scaledSize: new window.google.maps.Size(23, 30) }}
             />
           ))}
 
@@ -247,7 +251,7 @@ const MapManagement = () => {
             )}
           </GoogleMap>
 
-          {/* --- MAPPING OVERLAY (Responsive Bottom Sheet) --- */}
+          {/* --- MAPPING OVERLAY --- */}
           {residentToMap && (
             <div className="absolute bottom-3 left-3 right-3 md:bottom-4 md:left-4 md:right-auto md:w-80 lg:w-96 bg-white p-3 md:p-4 rounded-lg md:rounded-xl shadow-xl border border-orange-100 z-10 animate-in slide-in-from-bottom-5 duration-1000">
               <div className="flex items-center justify-between mb-2">

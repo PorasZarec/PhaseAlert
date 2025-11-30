@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Trash2, Plus, Edit2, MapPin, Mail, Phone, User, Shield, X, UserRoundPlus ,UserRoundCog   } from 'lucide-react';
+import Modal from '../shared/Modal';
 
 const UserManagement = ({
   activeTab, 
@@ -12,14 +13,14 @@ const UserManagement = ({
   handleSaveUser
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null); // Null = Add Mode, Object = Edit Mode
+  const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     email: '',
     full_name: '',
     role: 'resident',
     address_block: '',
     address_lot: '',
-    phone: '', // <--- Added Phone State
+    phone: '',
     password: ''
   });
 
@@ -33,7 +34,7 @@ const UserManagement = ({
       role: 'resident', 
       address_block: '', 
       address_lot: '', 
-      phone: '', // <--- Reset Phone
+      phone: '',
       password: '' 
     });
     setIsModalOpen(true);
@@ -47,15 +48,22 @@ const UserManagement = ({
       role: user.role || 'resident',
       address_block: user.address_block || '',
       address_lot: user.address_lot || '',
-      phone: user.phone || '', // <--- Load Phone
+      phone: user.phone || '',
       password: '' 
     });
     setIsModalOpen(true);
   };
 
+  const sanitizedData = {
+    ...formData,
+    address_block: formData.address_block ? parseInt(formData.address_block) : null,
+    address_lot: formData.address_lot ? parseInt(formData.address_lot) : null,
+    id: currentUser?.id 
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    handleSaveUser({ ...formData, id: currentUser?.id }, !!currentUser);
+    handleSaveUser(sanitizedData, !!currentUser);
     setIsModalOpen(false);
   };
 
@@ -66,14 +74,15 @@ const UserManagement = ({
 
   return (
     <div className="space-y-4">
-      {/* --- Top Bar: Tabs, Search, Add Button --- */}
+      {/* --- Top Bar --- */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-        
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-full md:w-auto overflow-x-auto">
-          <TabButton active={activeTab === "resident"} onClick={() => setActiveTab("resident")} label="Residents" />
-          <TabButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admins" />
-          <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All" />
+        <div className="w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg min-w-max"> 
+            <TabButton active={activeTab === "resident"} onClick={() => setActiveTab("resident")} label="Residents" />
+            <TabButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admins" />
+            <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All Users" />
+          </div>
         </div>
 
         {/* Actions */}
@@ -115,7 +124,7 @@ const UserManagement = ({
           </div>
         )}
 
-        {/* VIEW 1: DESKTOP TABLE (Hidden on Mobile) */}
+        {/* DESKTOP TABLE (Hidden on Mobile) */}
         {!isLoading && filteredUsers.length > 0 && (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -165,7 +174,7 @@ const UserManagement = ({
           </div>
         )}
 
-        {/* VIEW 2: MOBILE CARDS (Visible only on Mobile) */}
+        {/* MOBILE CARDS (Visible only on Mobile) */}
         {!isLoading && filteredUsers.length > 0 && (
           <div className="md:hidden divide-y divide-gray-100">
             {filteredUsers.map((u) => (
@@ -204,7 +213,7 @@ const UserManagement = ({
         )}
       </div>
 
-      {/* --- REUSABLE MODAL (Embedded) --- */}
+      {/* --- REUSABLE MODAL --- */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -286,6 +295,7 @@ const UserManagement = ({
               <label className="text-sm font-medium text-gray-700">Block</label>
               <input
                 name="address_block"
+                type="number" 
                 value={formData.address_block}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
@@ -296,6 +306,7 @@ const UserManagement = ({
               <label className="text-sm font-medium text-gray-700">Lot</label>
               <input
                 name="address_lot"
+                type="number"
                 value={formData.address_lot}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
@@ -326,7 +337,7 @@ const UserManagement = ({
                 <option value="resident">Resident</option>
                 <option value="admin">Admin</option>
               </select>
-            </div>
+            </div>  
           </div>
 
           <div className="pt-4 flex gap-3">
@@ -381,47 +392,6 @@ const ActionButton = ({ onClick, icon, color }) => (
   </button>
 );
 
-// --- Embedded Modal Component to fix import error ---
-const Modal = ({ isOpen, onClose, title, children }) => {
-  // Prevent scrolling when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200">
-      <div 
-        className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-          <button 
-            onClick={onClose}
-            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 max-h-[80vh] overflow-y-auto">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export default UserManagement;
