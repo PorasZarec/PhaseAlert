@@ -205,7 +205,7 @@ const InboxManagement = () => {
           className={`w-full text-left p-3 rounded-lg mb-4 font-medium transition-colors duration-200 
             ${activeTab === 'community' ? 'bg-orange-500 text-white shadow-md' : 'hover:bg-orange-50 text-gray-600'}`}
         >
-          📢 Community Chat
+          Community Chat
         </button>
         <div className="flex-1 overflow-y-auto">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Residents</h3>
@@ -236,7 +236,7 @@ const InboxManagement = () => {
         {/* Header */}
         <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <h2 className="font-bold text-lg text-gray-700">
-            {activeTab === 'community' ? '🏘️ Community Wall' : `💬 ${selectedResident?.full_name || 'Select a user'}`}
+            {activeTab === 'community' ? 'Community Wall' : `${selectedResident?.full_name || 'Select a user'}`}
           </h2>
           {activeTab === 'community' && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Public</span>}
         </div>
@@ -287,7 +287,7 @@ const InboxManagement = () => {
                     disabled={!newMessage.trim() || (activeTab === 'direct' && !selectedResident)}
                     className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-2 rounded-full font-medium transition-colors shadow-md flex items-center gap-2"
                 >
-                    Send 🚀
+                    Send
                 </button>
            </div>
         </div>

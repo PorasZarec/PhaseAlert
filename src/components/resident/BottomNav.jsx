@@ -25,7 +25,7 @@ const BottomNav = ({setActiveTab, activeTab}) => {
         </button>
 
         {/* Middle: Main Action (Report/SOS) */}
-        <div className="flex items-center justify-center -mt-8 mx-2">
+        {/* <div className="flex items-center justify-center -mt-8 mx-2">
           <button 
             onClick={() => setActiveTab('create')}
             className="flex items-center justify-center w-14 h-14 bg-orange-600 hover:bg-orange-700 text-white rounded-full shadow-lg border-4 border-gray-50 transition-transform active:scale-95"
@@ -33,7 +33,7 @@ const BottomNav = ({setActiveTab, activeTab}) => {
             <Plus className="w-8 h-8" />
             <span className="sr-only">New Report</span>
           </button>
-        </div>
+        </div> */}
 
         {/* Tab 3: Messages */}
         <button 
@@ -45,13 +45,13 @@ const BottomNav = ({setActiveTab, activeTab}) => {
         </button>
 
         {/* Tab 4: Profile/Settings */}
-        <button 
+        {/* <button 
           onClick={() => setActiveTab('settings')}
           className={`flex-1 flex flex-col items-center justify-center h-full rounded-r-full group transition-colors ${activeTab === 'settings' ? 'text-orange-600' : 'text-gray-500 hover:text-orange-500'}`}
         >
           <Settings className="w-6 h-6 mb-1" strokeWidth={activeTab === 'settings' ? 2.5 : 2} />
           <span className="sr-only">Settings</span>
-        </button>
+        </button> */}
 
       </div>
     </div>

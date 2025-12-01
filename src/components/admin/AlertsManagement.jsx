@@ -8,7 +8,7 @@ import {
   Plus, Search, Trash2, Edit2, ChevronDown
 } from 'lucide-react';
 
-import { CATEGORIES, COMMON_TITLES } from '../../data/HelperData';
+import { CATEGORIES, ALERT_TYPES } from '../../data/HelperData';
 
 const AlertsManagement = () => {
   const [alerts, setAlerts] = useState([]);
@@ -233,7 +233,7 @@ const AlertsManagement = () => {
                   </button>
                   {dropdownOpen && (
                     <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
-                      {COMMON_TITLES.map((t) => (
+                      {ALERT_TYPES.map((t) => (
                         <li key={t} onClick={() => { setFormData((prev) => ({ ...prev, title: t })); setDropdownOpen(false); }} className="p-2 hover:bg-amber-50 cursor-pointer text-sm">
                           {t}
                         </li>

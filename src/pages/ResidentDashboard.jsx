@@ -116,16 +116,12 @@ const ResidentDashboard = () => {
                       </div>
 
                       {/* Menu Items */}
-                      <div className="py-2">
+                      {/* <div className="py-2">
                         <button className="w-full text-left px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
                           <User className="w-4 h-4 text-gray-400" />
                           My Account
                         </button>
-                        <button className="w-full text-left px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors">
-                          <Bell className="w-4 h-4 text-gray-400" />
-                          Notifications
-                        </button>
-                      </div>
+                      </div> */}
 
                       <div className="border-t border-gray-100 my-1"></div>
                       
