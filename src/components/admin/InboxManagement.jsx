@@ -1,299 +1,170 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../../services/supabaseClient'; 
-import MessageBubble from './../shared/MessageBubble'; 
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../services/supabaseClient';
+import MessageBubble from '../shared/MessageBubble';
+import { useMessages } from '../../hooks/useMessages';
+import { Search, Users, User, Send, MessageSquare } from 'lucide-react';
 
 const InboxManagement = () => {
   const [activeTab, setActiveTab] = useState('community'); 
-  const [selectedResident, setSelectedResident] = useState(null); 
-  const [residentList, setResidentList] = useState([]); 
-  const [currentUserId, setCurrentUserId] = useState(null);
-  
-  // Messaging States
-  const [messages, setMessages] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [selectedResident, setSelectedResident] = useState(null);
+  const [residentList, setResidentList] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Pagination States
-  const [page, setPage] = useState(0); 
-  const [hasMore, setHasMore] = useState(true); 
-  const MESSAGES_PER_BATCH = 20;
 
-  // Refs
-  const scrollContainerRef = useRef(null);
-  const previousScrollHeightRef = useRef(0); 
-  const inputRef = useRef(null);
+  const scrollRef = useRef(null);
 
-  // Initial Setup: Get User & Residents
   useEffect(() => {
     const setup = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUserId(user.id);
+      console.log("Current Admin User:", user); // DEBUG CHECK
+      setCurrentUser(user);
 
       const { data } = await supabase
         .from('profiles')
         .select('*')
-        .neq('role', 'admin');
+        .neq('role', 'admin')
+        .order('full_name');
       setResidentList(data || []);
     };
     setup();
   }, []);
 
-  // Reset Context when switching tabs/users
+  const { messages, isLoading, sendMessage, isSending } = useMessages(
+    activeTab, 
+    currentUser?.id, 
+    selectedResident?.id
+  );
+
   useEffect(() => {
-    setMessages([]);
-    setPage(0);
-    setHasMore(true);
-    // Scroll to bottom after reset
-    setTimeout(() => {
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-      }
-    }, 100);
-  }, [activeTab, selectedResident?.id]); 
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
 
-  // Fetch Messages (Batching)
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!currentUserId) return;
-      if (activeTab === 'direct' && !selectedResident) return;
-      
-      setIsLoading(true);
+  const handleSend = (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
 
-      const from = page * MESSAGES_PER_BATCH;
-      const to = from + MESSAGES_PER_BATCH - 1;
-
-      // --- FIX IS HERE ---
-      // We specify 'profiles!fk_messages_sender' to tell Supabase exactly which relationship to use
-      let query = supabase
-        .from('messages')
-        .select(`*, sender:profiles!fk_messages_sender(full_name, avatar_url)`)
-        .order('created_at', { ascending: false }) 
-        .range(from, to);
-
-      if (activeTab === 'community') {
-        query = query.is('receiver_id', null);
-      } else if (activeTab === 'direct' && selectedResident) {
-        query = query.or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedResident.id}),and(sender_id.eq.${selectedResident.id},receiver_id.eq.${currentUserId})`);
-      }
-
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error("Error fetching messages:", error);
-        setIsLoading(false);
-        return;
-      }
-      
-      if (data) {
-        if (data.length < MESSAGES_PER_BATCH) {
-          setHasMore(false);
-        }
-
-        // Reverse to show Oldest -> Newest
-        const orderedMessages = data.reverse();
-
-        setMessages((prev) => {
-          if (page === 0) return orderedMessages;
-          return [...orderedMessages, ...prev];
-        });
-      }
-      setIsLoading(false);
-    };
-
-    fetchMessages();
-  }, [page, activeTab, selectedResident?.id, currentUserId]); 
-
-  // Realtime Subscription
-  useEffect(() => {
-    if (!currentUserId) return;
-
-    const channel = supabase
-      .channel('realtime:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
-         
-         const incomingMsg = payload.new;
-
-         const { data: senderData } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('id', incomingMsg.sender_id)
-            .single();
-
-         const newMsg = { ...incomingMsg, sender: senderData };
-
-         let shouldShow = false;
-
-         if (activeTab === 'community' && !newMsg.receiver_id) {
-           shouldShow = true;
-         }
-
-         if (activeTab === 'direct' && selectedResident) {
-           const isFromThem = newMsg.sender_id === selectedResident.id && newMsg.receiver_id === currentUserId;
-           const isToThem = newMsg.sender_id === currentUserId && newMsg.receiver_id === selectedResident.id;
-           if (isFromThem || isToThem) shouldShow = true;
-         }
-
-         if (shouldShow) {
-            setMessages((prev) => [...prev, newMsg]);
-            
-            setTimeout(() => {
-                if (scrollContainerRef.current) {
-                    scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-                }
-            }, 100);
-         }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [activeTab, selectedResident?.id, currentUserId]);
-
-  // Handle Scroll (Load More Logic)
-  const handleScroll = () => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    if (container.scrollTop === 0 && hasMore && !isLoading) {
-        previousScrollHeightRef.current = container.scrollHeight;
-        setPage((prev) => prev + 1);
-    }
+    sendMessage({ 
+        content: newMessage, 
+        receiverId: activeTab === 'community' ? null : selectedResident?.id 
+    }, {
+        onSuccess: () => setNewMessage('')
+    });
   };
 
-  // Adjust Scroll Position after Loading Old Messages
-  useEffect(() => {
-    if (page > 0 && scrollContainerRef.current) {
-        const newScrollHeight = scrollContainerRef.current.scrollHeight;
-        const heightDifference = newScrollHeight - previousScrollHeightRef.current;
-        scrollContainerRef.current.scrollTop = heightDifference;
-    } else if (page === 0 && scrollContainerRef.current && messages.length > 0) {
-        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-    }
-  }, [messages, page]);
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !currentUserId) return;
-    
-    const messageContent = newMessage.trim();
-    setNewMessage('');
-
-    const payload = {
-      content: messageContent,
-      sender_id: currentUserId,
-      receiver_id: activeTab === 'community' ? null : selectedResident?.id, 
-    };
-
-    const { error } = await supabase.from('messages').insert([payload]);
-    
-    if (error) {
-        console.error("Error sending message:", error);
-        setNewMessage(messageContent); 
-    } else {
-        // Successfully sent, ensure input is ready
-        if (inputRef.current) {
-            inputRef.current.focus();
-        }
-    }
-  };
+  const filteredResidents = residentList.filter(r => 
+    r.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="flex h-[80vh] gap-4 font-sans text-gray-800">
+    <div className="flex h-[calc(100vh-140px)] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden font-sans">
+      
       {/* SIDEBAR */}
-      <div className="w-1/4 bg-white border border-orange-200 p-4 rounded-xl shadow-sm flex flex-col">
-        <h2 className="font-bold text-orange-600 mb-6 text-xl tracking-tight">Inbox</h2>
-        <button 
-          onClick={() => { setActiveTab('community'); setSelectedResident(null); }}
-          className={`w-full text-left p-3 rounded-lg mb-4 font-medium transition-colors duration-200 
-            ${activeTab === 'community' ? 'bg-orange-500 text-white shadow-md' : 'hover:bg-orange-50 text-gray-600'}`}
-        >
-          Community Chat
-        </button>
-        <div className="flex-1 overflow-y-auto">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Residents</h3>
-          <div className="space-y-1">
-            {residentList.map(resident => (
+      <div className="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+            <h2 className="font-bold text-gray-800 text-lg mb-4">Inbox</h2>
+            <button
+                onClick={() => { setActiveTab('community'); setSelectedResident(null); }}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg text-sm font-medium transition-all mb-4
+                    ${activeTab === 'community' ? 'bg-orange-500 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+            >
+                <Users size={18} /> Community Wall
+            </button>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                    type="text" 
+                    placeholder="Search residents..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            <p className="px-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 mt-2">Direct Messages</p>
+            {filteredResidents.map(resident => (
                 <button
-                key={resident.id}
-                onClick={() => {
-                    setActiveTab('direct');
-                    setSelectedResident(resident);
-                }}
-                className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-colors duration-200
-                    ${selectedResident?.id === resident.id && activeTab === 'direct' 
-                    ? 'bg-orange-100 text-orange-800 border-l-4 border-orange-500' : 'hover:bg-gray-50'}`}
+                    key={resident.id}
+                    onClick={() => { setActiveTab('direct'); setSelectedResident(resident); }}
+                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors text-left
+                        ${selectedResident?.id === resident.id && activeTab === 'direct'
+                            ? 'bg-blue-100 text-blue-900 border-l-4 border-blue-500' 
+                            : 'hover:bg-gray-100 text-gray-700'}`}
                 >
-                <div className="w-8 h-8 rounded-full bg-amber-200 flex items-center justify-center text-amber-700 font-bold text-xs">
-                    {resident.full_name ? resident.full_name[0] : 'U'}
-                </div>
-                <span className="truncate">{resident.full_name || 'Resident'}</span>
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xs shrink-0">
+                        {resident.full_name ? resident.full_name[0] : 'U'}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{resident.full_name}</p>
+                    </div>
                 </button>
             ))}
-          </div>
         </div>
       </div>
 
       {/* CHAT AREA */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-          <h2 className="font-bold text-lg text-gray-700">
-            {activeTab === 'community' ? 'Community Wall' : `${selectedResident?.full_name || 'Select a user'}`}
-          </h2>
-          {activeTab === 'community' && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Public</span>}
+      <div className="flex-1 flex flex-col bg-white min-w-0">
+        <div className="h-16 border-b border-gray-100 px-6 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+                {activeTab === 'community' ? (
+                    <>
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600"><Users size={20} /></div>
+                        <div>
+                            <h3 className="font-bold text-gray-800">Community Chat</h3>
+                            <p className="text-xs text-gray-500">Public visibility</p>
+                        </div>
+                    </>
+                ) : selectedResident ? (
+                    <>
+                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><User size={20} /></div>
+                        <div>
+                            <h3 className="font-bold text-gray-800">{selectedResident.full_name}</h3>
+                            <p className="text-xs text-gray-500">Blk {selectedResident.address_block}</p>
+                        </div>
+                    </>
+                ) : (
+                    <div className="text-gray-400">Select a resident to start messaging</div>
+                )}
+            </div>
         </div>
 
-        {/* Messages List (Scrollable) */}
-        <div 
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-6 bg-gray-50/50"
-        >
-          {isLoading && page === 0 && (
-             <div className="text-center text-xs text-gray-400 py-2">Loading messages...</div>
-          )}
-
-          {isLoading && page > 0 && (
-             <div className="text-center text-xs text-gray-400 py-2">Loading history...</div>
-          )}
-
-          {!isLoading && messages.length === 0 && (
-             <div className="text-center text-gray-400 mt-10">No messages yet. Start the conversation!</div>
-          )}
-          
-          {messages.map((msg) => (
-             <MessageBubble key={msg.id} message={msg} currentUserId={currentUserId} />
-          ))}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-2 bg-gray-50/30">
+            {isLoading ? (
+                <div className="flex justify-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div>
+            ) : messages.length === 0 ? (
+                <div className="text-center text-gray-400 mt-10">No messages found.</div>
+            ) : (
+                messages.map(msg => (
+                    <MessageBubble key={msg.id} message={msg} currentUserId={currentUser?.id} />
+                ))
+            )}
         </div>
 
-        {/* Input Area */}
-        <div className="p-4 border-t border-gray-100 bg-white">
-           <div className="flex gap-3">
-                <input 
-                    ref={inputRef}
-                    type="text" 
-                    className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 rounded-full px-4 py-3 outline-none transition-all" 
+        {/* Input Area (Fixed Layout) */}
+        <div className="p-4 border-t border-gray-100 bg-white shrink-0">
+            <form onSubmit={handleSend} className="flex gap-3 relative">
+                <input
+                    type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
                     disabled={activeTab === 'direct' && !selectedResident}
-                    onKeyPress={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                        }
-                    }}
+                    placeholder="Type your message..."
+                    className="flex-1 bg-gray-100 border border-transparent focus:bg-white focus:border-blue-300 rounded-full px-5 py-3 outline-none transition-all"
                 />
-                <button 
-                    onClick={handleSendMessage} 
-                    disabled={!newMessage.trim() || (activeTab === 'direct' && !selectedResident)}
-                    className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-6 py-2 rounded-full font-medium transition-colors shadow-md flex items-center gap-2"
+                <button
+                    type="submit"
+                    disabled={!newMessage.trim() || isSending || (activeTab === 'direct' && !selectedResident)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center"
                 >
-                    Send
+                    <Send size={20} />
                 </button>
-           </div>
+            </form>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default InboxManagement
+export default InboxManagement;
