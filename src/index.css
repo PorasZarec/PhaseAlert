@@ -3,3 +3,29 @@
 .gm-ui-hover-effect {
   display: none !important;
 }
+
+/* Custom pulse animations fallback */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-fast {
+  animation: pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-pulse-faster {
+  animation: pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-pulse-slower {
+  animation: pulse 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

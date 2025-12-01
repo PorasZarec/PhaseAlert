@@ -180,7 +180,6 @@ const MapManagement = () => {
               strokeOpacity: 0.8,
               strokeWeight: 2,
               clickable: false, 
-              // Optional: Disable dragging/editing to be safe
               draggable: false, 
               editable: false 
             }}
@@ -192,7 +191,7 @@ const MapManagement = () => {
               key={resident.id}
               position={{ lat: resident.latitude, lng: resident.longitude }}
               onClick={() => setSelectedResident(resident)}
-              icon={{ url: "/black-pin.png", scaledSize: new window.google.maps.Size(23, 30) }}
+              icon={{ url: "/green-pin.png", scaledSize: new window.google.maps.Size(23, 30) }}
             />
           ))}
 

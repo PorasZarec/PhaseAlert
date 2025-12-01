@@ -10,12 +10,12 @@ const NewsCard = ({ alert, footer }) => {
   const getStyles = () => {
     if (alert.is_urgent) {
       return {
-        container: 'border-red-200 ring-1 ring-red-100',
-        header: 'bg-red-50/50 border-red-100',
-        iconBox: 'bg-red-100 text-red-600',
-        icon: <AlertTriangle className="w-5 h-5" />
+        container: "border-red-300 ring-1 ring-red-200",
+        header: "bg-red-600 border-red-600 animate-pulse-faster",
+        iconBox: "bg-red-700 text-red-100",
+        icon: <AlertTriangle className="w-5 h-5 text-red-100" />,
       };
-    }
+    }    
     
     switch (alert.category) {
       case 'Event':
@@ -46,7 +46,7 @@ const NewsCard = ({ alert, footer }) => {
   const styles = getStyles();
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${styles.container}`}>
+    <div className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${styles.container}` }>
       {/* Header Section */}
       <div className={`px-5 py-4 flex justify-between items-start border-b ${styles.header}`}>
         <div className="flex gap-3">
@@ -54,10 +54,18 @@ const NewsCard = ({ alert, footer }) => {
             {styles.icon}
           </div>
           <div>
-            <h3 className="font-semibold text-gray-800 line-clamp-1">{alert.title}</h3>
-            <p className="text-xs text-gray-500 capitalize">
+          <h3 className={`font-semibold line-clamp-1 
+            ${alert.is_urgent ? "text-white" : "text-gray-800"}`}
+          >
+            {alert.title}
+          </h3>
+
+            <p className={`text-xs capitalize
+              ${alert.is_urgent ? "text-white" : "text-gray-500"}`}
+            >
               {alert.category} • {new Date(alert.created_at).toLocaleDateString()}
             </p>
+            
           </div>
         </div>
       </div>

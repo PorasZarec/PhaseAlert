@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../services/supabaseClient";
-import NewsCard from "../../components/shared/NewsCard"; // Adjust path if needed
+import NewsCard from "../../components/shared/NewsCard"; 
 import { Search } from "lucide-react";
-import CATEGORIES from "../../data/HelperData"
+import { CATEGORIES } from "../../data/HelperData";
 
 const CommunityNewsTab = () => {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Filter States
+  // Filter States - Defaulting to "All" (Capitalized)
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -33,21 +33,24 @@ const CommunityNewsTab = () => {
     }
   };
 
-  // Unified Filter Logic
-  const filteredNews = news.filter((item) => {
-    // Check Category
+  // --- REFACTORED FILTER LOGIC ---
+  const filteredNews = news.filter(item => {
     let matchesCategory = true;
+  
     if (activeCategory === "Urgent") {
-        matchesCategory = item.is_urgent === true;
+      // Special case for boolean check
+      matchesCategory = item.is_urgent === true;
     } else if (activeCategory !== "All") {
-        matchesCategory = item.category === activeCategory;
+      // Direct comparison: "News" === "News"
+      // No .toLowerCase() needed anymore
+      matchesCategory = item.category === activeCategory;
     }
-
-    // Check Search (Title or Body)
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = item.title.toLowerCase().includes(query) || 
-                          (item.body && item.body.toLowerCase().includes(query));
-
+  
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      item.title.toLowerCase().includes(q) ||
+      item.body?.toLowerCase().includes(q);
+  
     return matchesCategory && matchesSearch;
   });
 
@@ -55,37 +58,31 @@ const CommunityNewsTab = () => {
     <div className="space-y-6 pb-20">
       
       {/* --- HEADER & FILTERS --- */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 sticky top-0 z-10">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Community Updates</h2>
-        
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input 
-            type="text"
-            placeholder="Search updates..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 outline-none duration-200"
-          />
-        </div>
+        <div className="sticky top-0 z-10 flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200 ">
+          {/* Categories Pills */}
+          <div className="flex gap-2 w-full md:w-auto overflow-x-auto rounded-xl p-2 bg-gray-50">
+            {CATEGORIES.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setActiveCategory(key)}
+                className={`px-4 py-2 font-medium rounded-md text-sm whitespace-nowrap transition-all
+                  ${activeCategory === key ? 'bg-amber-100 text-amber-700 shadow-sm ring-1 ring-amber-200' : 'text-gray-500 hover:bg-white'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-        {/* Categories Pills */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-xl text-sm font-medium transition-colors border 
-                ${activeCategory === cat 
-                  ? "bg-orange-600 text-white border-orange-600 shadow-sm" 
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-            >
-              {cat}
-            </button>
-          ))}
+          {/* Search */}
+          <div className="flex gap-3 w-full md:w-auto">
+            <div className="relative flex-grow md:flex-grow-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none w-full duration-200" />
+            </div>
+          </div>
+          
         </div>
-      </div>
 
       {/* --- NEWS GRID --- */}
       {loading ? (
@@ -98,13 +95,20 @@ const CommunityNewsTab = () => {
             <NewsCard 
               key={item.id} 
               alert={item} 
-              // We don't pass a footer here, so it defaults to "By [Author]"
             />
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
+        <div className="flex flex-col items-center justify-center py-12 text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
           <p>No updates found.</p>
+          {(activeCategory !== "All" || searchQuery) && (
+            <button 
+                onClick={() => { setActiveCategory("All"); setSearchQuery(""); }}
+                className="text-orange-600 text-sm mt-2 hover:underline"
+            >
+                Clear filters
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -3,24 +3,20 @@ import { supabase } from '../../services/supabaseClient';
 import { toast } from 'sonner';
 import Modal from '../shared/Modal'; 
 import ImageUpload from '../shared/ImageUpload';
-import NewsCard from '../shared/NewsCard'; // Importing the reusable card
+import NewsCard from '../shared/NewsCard'; 
 import { 
   Plus, Search, Trash2, Edit2, ChevronDown
 } from 'lucide-react';
 
-const COMMON_TITLES = [
-  "Water Interruption Advisory",
-  "Power Outage Scheduled",
-  "Garbage Collection Schedule",
-  "Emergency Storm Warning",
-  "Community Assembly"
-];
+import { CATEGORIES, COMMON_TITLES } from '../../data/HelperData';
 
 const AlertsManagement = () => {
   const [alerts, setAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  
+  // Default to "All" (Capitalized)
+  const [filter, setFilter] = useState("All");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAlert, setCurrentAlert] = useState(null);
@@ -34,7 +30,7 @@ const AlertsManagement = () => {
     expires_at: ''
   });
 
-  const [open, setDropdownOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -58,7 +54,6 @@ const AlertsManagement = () => {
     }
   };
 
-  // ... (Keep handleSubmit, handleDelete, handleChange logic same as your original file)
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -140,9 +135,20 @@ const AlertsManagement = () => {
     setFormData(prev => ({ ...prev, image_url: url }));
   };
 
+  // --- REFACTORED FILTER LOGIC ---
   const filteredAlerts = alerts.filter(alert => {
     const matchesSearch = alert.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filter === 'all' ? true : filter === 'urgent' ? alert.is_urgent : alert.category.toLowerCase() === filter;
+    
+    let matchesFilter = true;
+    if (filter === 'All') {
+        matchesFilter = true;
+    } else if (filter === 'Urgent') {
+        matchesFilter = alert.is_urgent === true;
+    } else {
+        // Direct exact match (e.g., "News" === "News")
+        matchesFilter = alert.category === filter;
+    }
+
     return matchesSearch && matchesFilter;
   });
 
@@ -150,17 +156,29 @@ const AlertsManagement = () => {
     <div className="space-y-6">
       {/* Top Bar */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex gap-2 bg-gray-100 p-1 rounded-lg overflow-x-auto">
-          {['all', 'urgent', 'news', 'event', 'advisory'].map((f) => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 font-medium rounded-md capitalize transition-all ${filter === f ? 'bg-white shadow-sm text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>{f}</button>
+        
+        {/* Categories Pills */}
+        <div className="flex gap-2 w-full md:w-auto overflow-x-auto rounded-xl p-2 bg-gray-50">
+          {CATEGORIES.map(({ key, label }) => (
+            <button 
+                key={key} 
+                onClick={() => setFilter(key)} 
+                className={`px-4 py-2 font-medium rounded-md text-sm whitespace-nowrap transition-all 
+                ${filter === key ? 'bg-amber-100 text-amber-700 shadow-sm ring-1 ring-amber-200' : 'text-gray-500 hover:bg-white'}`}
+            >
+                {label}
+            </button>
           ))}
         </div>
-        <div className="flex gap-3 w-full md:w-auto ">
+
+        <div className="flex gap-3 w-full md:w-auto">
           <div className="relative flex-grow md:flex-grow-0">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
              <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none w-full" />
           </div>
-          <button onClick={() => openModal()} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors "><Plus className="w-4 h-4" /><span>Create Alert</span></button>
+          <button onClick={() => openModal()} className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shrink-0">
+            <Plus className="w-4 h-4" /><span>Create Alert</span>
+          </button>
         </div>
       </div>
 
@@ -170,15 +188,14 @@ const AlertsManagement = () => {
           <NewsCard 
             key={alert.id} 
             alert={alert}
-            // Passing Custom Admin Footer
             footer={
               <div className="flex justify-between items-center w-full">
-                  <span className="text-gray-400">By {alert.profiles?.full_name || "Admin"}</span>
-                  <div className="flex gap-2">
-                      <button onClick={() => openModal(alert)} className="p-1.5 hover:bg-white rounded-md text-blue-600 transition-colors border border-transparent hover:border-gray-200 shadow-sm">
+                  <span className="text-gray-400 text-xs">By {alert.profiles?.full_name || "Admin"}</span>
+                  <div className="flex gap-1">
+                      <button onClick={() => openModal(alert)} className="p-1.5 hover:bg-gray-100 rounded-md text-blue-600 transition-colors">
                           <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => handleDelete(alert.id)} className="p-1.5 hover:bg-white rounded-md text-red-600 transition-colors border border-transparent hover:border-gray-200 shadow-sm">
+                      <button onClick={() => handleDelete(alert.id)} className="p-1.5 hover:bg-gray-100 rounded-md text-red-600 transition-colors">
                           <Trash2 className="w-4 h-4" />
                       </button>
                   </div>
@@ -186,12 +203,18 @@ const AlertsManagement = () => {
             }
           />
         ))}
+        {filteredAlerts.length === 0 && (
+             <div className="col-span-full text-center py-10 text-gray-400">
+                 No alerts found matching your criteria.
+             </div>
+        )}
       </div>
 
       {/* Modal Form */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentAlert ? "Edit Alert" : "Create New Alert"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Alert Title</label>          
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alert Title</label>          
                 <div className="relative w-full">
                   <input
                     type="text"
@@ -203,26 +226,32 @@ const AlertsManagement = () => {
                   />
                   <button
                     type="button"
-                    onClick={() => setDropdownOpen(!open)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 p-1"
                   >
                     <ChevronDown className="w-4 h-4" />
                   </button>
-                  {open && (
-                    <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg mt-1 shadow">
+                  {dropdownOpen && (
+                    <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
                       {COMMON_TITLES.map((t) => (
-                        <li key={t} onClick={() => { setFormData((prev) => ({ ...prev, title: t })); setDropdownOpen(false); }} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">
+                        <li key={t} onClick={() => { setFormData((prev) => ({ ...prev, title: t })); setDropdownOpen(false); }} className="p-2 hover:bg-amber-50 cursor-pointer text-sm">
                           {t}
                         </li>
                       ))}
                     </ul>
                   )}
                 </div>
+            </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select value={formData.category} onChange={(e) => setFormData(p => ({...p, category: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white">
+              <select 
+                name="category"
+                value={formData.category} 
+                onChange={handleChange} 
+                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white text-sm"
+              >
                 <option value="News">News</option>
                 <option value="Event">Event</option>
                 <option value="Advisory">Advisory</option>
@@ -230,7 +259,7 @@ const AlertsManagement = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expires At (Optional)</label>
-              <input type="datetime-local" value={formData.expires_at} onChange={(e) => setFormData(p => ({...p, expires_at: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none [color-scheme:light]" />
+              <input type="datetime-local" name="expires_at" value={formData.expires_at} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none text-sm" />
             </div>
           </div>
 
@@ -241,12 +270,14 @@ const AlertsManagement = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Details</label>
-            <textarea required rows={4} value={formData.body} onChange={(e) => setFormData(p => ({...p, body: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none resize-none" placeholder="Type details..." />
+            <textarea required rows={4} name="body" value={formData.body} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none resize-none text-sm" placeholder="Type details..." />
           </div>
 
           <ImageUpload onUploadComplete={handleImageUploaded} initialImage={formData.image_url} />
 
-          <button type="submit" className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">{currentAlert ? "Save Changes" : "Post Alert"}</button>
+          <button type="submit" className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
+            {currentAlert ? "Save Changes" : "Post Alert"}
+          </button>
         </form>
       </Modal>
     </div>
