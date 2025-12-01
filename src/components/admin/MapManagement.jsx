@@ -2,53 +2,35 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, useLoadScript, Marker, InfoWindow, Polygon } from '@react-google-maps/api';
 import { supabase } from '../../services/supabaseClient';
 import { toast } from 'sonner';
-import { Save, X, UserPlus, Map as MapIcon } from 'lucide-react'; // Assuming you have lucide-react
+import Modal from '../shared/Modal';
+import { 
+  Save, X, UserPlus, MapIcon, BellRing, Send, 
+  CheckSquare, Square, Users, MousePointer2, CircleX 
+} from 'lucide-react';
 
-// --- MAP SETTINGS ---
+import { ALERT_TYPES, VILLAGE_CENTER, VILLAGE_BOUNDARY } from '../../data/HelperData';
+
 const libraries = ['places'];
-const mapContainerStyle = {
-  width: "100%",
-  height: "calc(100vh - 200px)", // Adjusted height for mobile
-  borderRadius: "12px",
-};
-
-const VILLAGE_CENTER = { lat: 14.2388, lng: 121.1692 };
-
-// 1. BOUNDARY COORDINATES (From your request)
-const VILLAGE_BOUNDARY = [
-  { lat: 14.2393, lng: 121.1695 },
-  { lat: 14.2385, lng: 121.1698 },
-  { lat: 14.2382, lng: 121.1689 },
-  { lat: 14.2390, lng: 121.1686 }
-];
-
-// 2. MAP STYLES (Hides default POIs like businesses)
-const mapOptions = {
-  disableDefaultUI: false,
-  streetViewControl: false,
-  mapTypeControl: false,
-  styles: [
-    {
-      featureType: "poi",
-      elementType: "labels",
-      stylers: [{ visibility: "off" }], // This hides the default pins
-    },
-    {
-      featureType: "transit",
-      stylers: [{ visibility: "off" }],
-    }
-  ]
-};
+const mapContainerStyle = { width: "100%", height: "calc(100vh - 180px)", borderRadius: "12px" };
 
 const MapManagement = () => {
-  const [residents, setResidents] = useState([]); // Mapped residents
-  const [unmappedResidents, setUnmappedResidents] = useState([]); // Residents with NO location
-  const [selectedResident, setSelectedResident] = useState(null); // For viewing info
+  // Data State
+  const [residents, setResidents] = useState([]); 
+  const [unmappedResidents, setUnmappedResidents] = useState([]); 
   
-  // Mapping Mode State
-  const [residentToMap, setResidentToMap] = useState(null); // The user we are currently trying to pin
-  const [tempPin, setTempPin] = useState(null); // Where we clicked
+  // Interaction State
+  const [selectedResident, setSelectedResident] = useState(null); // Single resident
+  const [residentToMap, setResidentToMap] = useState(null); 
+  const [tempPin, setTempPin] = useState(null); 
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // --- MULTI-SELECT STATE ---
+  const [isSelectMode, setIsSelectMode] = useState(false); // Toggle for "Select Mode"
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // --- ALERT MODAL STATE ---
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [alertData, setAlertData] = useState({ title: ALERT_TYPES[0], body: '', type: 'info' });
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -66,32 +48,45 @@ const MapManagement = () => {
       .eq('role', 'resident');
 
     if (error) {
-      console.error('Error loading map data:', error);
       toast.error("Failed to load data");
     } else {
-      // Separate mapped vs unmapped
       const mapped = data.filter(r => r.latitude && r.longitude);
       const unmapped = data.filter(r => !r.latitude || !r.longitude);
-      
       setResidents(mapped);
       setUnmappedResidents(unmapped);
     }
   };
 
+  // --- MAP INTERACTIONS ---
+  const handleMarkerClick = (resident) => {
+    if (isSelectMode) {
+      // Toggle Selection
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(resident.id)) {
+        newSelected.delete(resident.id);
+      } else {
+        newSelected.add(resident.id);
+      }
+      setSelectedIds(newSelected);
+    } else {
+      // Normal Mode: Open Info Window
+      setSelectedResident(resident);
+    }
+  };
+
   const onMapClick = useCallback((event) => {
-    // We only care about clicks if we are trying to map a specific resident
-    if (!residentToMap) return;
+    // Only allow setting pin if in "Mapping Mode" and NOT in "Select Mode"
+    if (residentToMap && !isSelectMode) {
+      const newLat = event.latLng.lat();
+      const newLng = event.latLng.lng();
+      setTempPin({ lat: newLat, lng: newLng });
+    }
+  }, [residentToMap, isSelectMode]);
 
-    const newLat = event.latLng.lat();
-    const newLng = event.latLng.lng();
-    
-    setTempPin({ lat: newLat, lng: newLng });
-  }, [residentToMap]);
-
+  // --- SAVING LOCATION ---
   const handleSaveLocation = async () => {
     if (!residentToMap || !tempPin) return;
     setIsProcessing(true);
-
     try {
       const { error } = await supabase
         .from('profiles')
@@ -99,21 +94,69 @@ const MapManagement = () => {
         .eq('id', residentToMap.id);
 
       if (error) throw error;
-
       toast.success(`Location set for ${residentToMap.full_name}`);
-      
-      // Refresh local state without refetching API
       setResidents([...residents, { ...residentToMap, latitude: tempPin.lat, longitude: tempPin.lng }]);
       setUnmappedResidents(unmappedResidents.filter(r => r.id !== residentToMap.id));
-      
-      // Reset modes
       setResidentToMap(null);
       setTempPin(null);
     } catch (error) {
       toast.error('Error saving location');
-      console.error(error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // --- ALERT LOGIC ---
+  const handleOpenAlertModal = (singleResident = null) => {
+    if (singleResident) {
+        setSelectedIds(new Set([singleResident.id])); // Reset selection to just this one
+    }
+    
+    setAlertData({ title: ALERT_TYPES[0], body: '', type: 'info' });
+    setIsAlertModalOpen(true);
+  };
+
+  const handleSendAlert = async (e) => {
+    e.preventDefault();
+    if (selectedIds.size === 0) {
+        toast.error("No residents selected");
+        return;
+    }
+    setIsProcessing(true);
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // Determine Priority (Visuals only)
+        let alertType = 'info';
+        if (alertData.title.includes("Emergency") || alertData.title.includes("Storm")) alertType = 'emergency';
+        if (alertData.title.includes("Outage") || alertData.title.includes("Interruption")) alertType = 'warning';
+
+        // Prepare Bulk Insert Array
+        const notifications = Array.from(selectedIds).map(recipientId => ({
+            recipient_id: recipientId,
+            sender_id: user.id,
+            title: alertData.title,
+            body: alertData.body,
+            type: alertType,
+            is_read: false
+        }));
+
+        const { error } = await supabase.from('notifications').insert(notifications);
+        if (error) throw error;
+
+        toast.success(`Alert sent to ${selectedIds.size} resident(s)`);
+        
+        // Reset Logic
+        setIsAlertModalOpen(false);
+        setSelectedIds(new Set()); // Clear selection
+        setIsSelectMode(false);    // Exit select mode
+        setSelectedResident(null); // Close info window
+    } catch (error) {
+        console.error(error);
+        toast.error("Failed to send alerts");
+    } finally {
+        setIsProcessing(false);
     }
   };
 
@@ -122,13 +165,20 @@ const MapManagement = () => {
     setTempPin(null);
   };
 
+  // Helper to determine Modal Variant Color
+  const getModalVariant = () => {
+    if (alertData.title.includes("Emergency") || alertData.title.includes("Storm")) return 'urgent';
+    if (alertData.title.includes("Outage") || alertData.title.includes("Interruption")) return 'warning';
+    return 'default';
+  };
+
   if (loadError) return <div>Error loading maps</div>;
   if (!isLoaded) return <div>Loading Village Map...</div>;
 
   return (
-    <div className="relative h-full flex flex-col gap-4">
+    <div className="relative h-[calc(100vh-10rem)] flex flex-col gap-4">
       
-      {/* --- ACTION HEADER --- */}
+      {/* --- HEADER --- */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -139,25 +189,41 @@ const MapManagement = () => {
           </p>
         </div>
 
-        {/* Dropdown to Select Unmapped Resident */}
-        {!residentToMap && unmappedResidents.length > 0 && (
+        {/* MAPPING DROPDOWN (Hide if in Select Mode) */}
+        {!residentToMap && unmappedResidents.length > 0 && !isSelectMode && (
           <div className="flex items-center gap-2 w-full md:w-auto">
              <select 
-               className="w-full md:w-64 p-2.5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500"
+               className="w-full md:w-64 p-2 bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-orange-500"
                onChange={(e) => {
                  const res = unmappedResidents.find(r => r.id === e.target.value);
                  if(res) setResidentToMap(res);
                }}
                value=""
              >
-               <option value="" disabled>Select resident to map...</option>
+               <option value="" disabled>Resident to map...</option>
                {unmappedResidents.map(r => (
-                 <option key={r.id} value={r.id}>
-                   {r.full_name} (Blk {r.address_block} Lot {r.address_lot})
-                 </option>
+                 <option key={r.id} value={r.id}>{r.full_name}</option>
                ))}
              </select>
           </div>
+        )}
+
+        {/* SELECT MODE TOGGLE BUTTON */}
+        {!residentToMap && (
+             <button 
+             onClick={() => {
+                 setIsSelectMode(!isSelectMode);
+                 setSelectedIds(new Set()); // Clear when toggling
+                 setSelectedResident(null); // Close info windows
+             }}
+             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+             ${isSelectMode 
+                ? 'bg-amber-600 text-white shadow-md ring-2 ring-orange-300' 
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+           >
+             {isSelectMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+             {isSelectMode ? 'Finish Selection' : 'Select Multiple'}
+           </button>
         )}
       </div>
 
@@ -165,134 +231,213 @@ const MapManagement = () => {
       <div className="relative w-full rounded-xl overflow-hidden shadow-md border border-gray-200">
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
-          zoom={19}
+          zoom={18}
           center={VILLAGE_CENTER}
           onClick={onMapClick}
-          options={mapOptions}
+          options={{
+             disableDefaultUI: false,
+             streetViewControl: false,
+             mapTypeControl: false,
+             styles: [
+              { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+              // { featureType: "transit", stylers: [{ visibility: "off" }] } sakayan to pare
+            ],
+             draggableCursor: isSelectMode ? 'pointer' : (residentToMap ? 'crosshair' : 'grab')
+          }}
         >
-          {/* 1. The Village Boundary Box */}
           <Polygon
             paths={VILLAGE_BOUNDARY}
-            options={{
-              fillColor: "#ea580c", // Orange-600 of tailwind 
-              fillOpacity: 0.1,
-              strokeColor: "#ea580c",
-              strokeOpacity: 0.8,
-              strokeWeight: 2,
-              clickable: false, 
-              draggable: false, 
-              editable: false 
-            }}
+            options={{ fillColor: "#ea580c", fillOpacity: 0.05, strokeColor: "#ea580c", strokeOpacity: 0.5, strokeWeight: 1, clickable: false }}
           />
 
-          {/* 2. Existing Residents */}
-          {residents.map((resident) => (
-            <Marker
-              key={resident.id}
-              position={{ lat: resident.latitude, lng: resident.longitude }}
-              onClick={() => setSelectedResident(resident)}
-              icon={{ url: "/green-pin.png", scaledSize: new window.google.maps.Size(23, 30) }}
-            />
-          ))}
+          {residents.map((resident) => {
+            // DYNAMIC PIN COLOR LOGIC
+            const isSelected = selectedIds.has(resident.id);
+            const iconUrl = isSelected ? "/blue-pin.png" : "/black-pin.png";
 
-          {/* 3. Temporary Pin (While Mapping) */}
+            return (
+                <Marker
+                    key={resident.id}
+                    position={{ lat: resident.latitude, lng: resident.longitude }}
+                    onClick={() => handleMarkerClick(resident)}
+                    icon={{ 
+                        url: iconUrl, 
+                        scaledSize: new window.google.maps.Size(isSelected ? 25 : 25, isSelected ? 30 : 30) // if we make selected slightly bigger
+                    }}
+                    animation={isSelected ? window.google.maps.Animation.BOUNCE : null}
+                />
+            )
+          })}
+
           {tempPin && (
-            <Marker
-              position={tempPin}
-              animation={window.google.maps.Animation.DROP}
-              icon={{
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: "#F59E0B",
-                fillOpacity: 1,
-                strokeWeight: 2,
-                strokeColor: "#FFFFFF",
-              }}
-            />
+            <Marker position={tempPin} icon={{ path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#F59E0B", fillOpacity: 1, strokeWeight: 2, strokeColor: "#FFFFFF" }} />
           )}
 
-          {/* Info Window */}
-          {selectedResident && (
+          {/* --- INFO WINDOW (Only in Normal Mode) --- */}
+          {selectedResident && !isSelectMode && (
             <InfoWindow
               position={{ lat: selectedResident.latitude, lng: selectedResident.longitude }}
               onCloseClick={() => setSelectedResident(null)}
             >
-              <div className="relative min-w-[170px] p-1 pt-0 text-center">
-            
-                {/* Custom Close Button */}
-                <button 
+              <div className="p-1 min-w-[180px] text-center">
+              <button 
                   onClick={() => setSelectedResident(null)}
-                  className="absolute right-1 -top-px text-gray-400 hover:text-gray-600 transition"
+                  className="absolute right-2 top-2 text-gray-400 hover:text-gray-600 transition"
                 >
-                  ✕
+                  <CircleX className='w-5 h-5'/>
                 </button>
-            
-                {/* Title */}
-                <h3 className="font-semibold text-gray-900 text-sm leading-tight">
-                  {selectedResident.full_name}
-                </h3>
-            
-                {/* Address */}
-                <p className="text-xs text-gray-600 mt-1 mb-3">
-                  Blk {selectedResident.address_block} • Lot {selectedResident.address_lot}
-                </p>
-            
-                {/* Button */}
+
+                <h3 className="font-bold text-gray-900 text-sm">{selectedResident.full_name}</h3>
+                <p className="text-xs text-gray-500 mb-2">Blk {selectedResident.address_block} Lot {selectedResident.address_lot}</p>
                 <button
-                  className="text-xs bg-orange-50 text-orange-700 px-3 py-2 rounded-lg w-full 
-                            border border-orange-200 hover:bg-orange-100 transition"
-                  onClick={() => alert("Navigate to profile or edit")}
+                  className="w-full flex items-center justify-center gap-2 text-xs bg-red-50 text-red-700 px-3 py-1.5 rounded border border-red-200 hover:bg-red-100 font-medium"
+                  onClick={() => handleOpenAlertModal(selectedResident)}
                 >
-                  View Details
+                  <BellRing className="w-3 h-3" /> Send Alert
                 </button>
               </div>
             </InfoWindow>
             )}
-          </GoogleMap>
+        </GoogleMap>
 
-          {/* --- MAPPING OVERLAY --- */}
-          {residentToMap && (
-            <div className="absolute bottom-3 left-3 right-3 md:bottom-4 md:left-4 md:right-auto md:w-80 lg:w-96 bg-white p-3 md:p-4 rounded-lg md:rounded-xl shadow-xl border border-orange-100 z-10 animate-in slide-in-from-bottom-5 duration-1000">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                  <div className="bg-orange-100 p-1.5 md:p-2 rounded-full text-orange-600 flex-shrink-0">
-                    <UserPlus size={18} className="md:w-5 md:h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Mapping</p>
-                    <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">{residentToMap.full_name}</h3>
-                  </div>
-                </div>
-                <button onClick={cancelMapping} className="text-gray-400 hover:text-gray-600 flex-shrink-0 ml-2">
-                  <X size={18} className="md:w-5 md:h-5" />
-                </button>
-              </div>
-              
-              <p className="text-xs md:text-sm text-gray-600 mb-3">
-                {tempPin 
-                  ? "Location selected! Click save to finish." 
-                  : "Tap anywhere on the map to set location."}
-              </p>
-
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleSaveLocation}
-                  disabled={!tempPin || isProcessing}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-3 md:px-4 rounded-lg flex items-center justify-center gap-1.5 md:gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
-                >
-                  <Save size={16} className="md:w-[18px] md:h-[18px]" />
-                  {isProcessing ? "Saving..." : "Save"}
-                </button>
-              <button 
-                onClick={cancelMapping}
-                className="px-3 md:px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors text-sm"
+        {/* --- FLOATING DOCK (For Selection Mode) --- */}
+        {isSelectMode && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-lg px-6 py-3 rounded-2xl shadow-2xl border border-gray-200 flex items-center gap-6 z-10">
+          
+            {/* Selected Count */}
+            <div className="flex items-end gap-1.5 text-blue-900">
+              <Users className="w-5 h-5 text-blue-700" />
+          
+              <span className="text-xl font-bold leading-none">
+                {selectedIds.size}
+              </span>
+            </div>
+          
+            {/* Divider */}
+            <div className="h-6 w-px bg-gray-600" />
+          
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="
+                  px-3 py-2 text-xs font-medium
+                  text-gray-600 bg-gray-100
+                  hover:bg-gray-200 hover:text-gray-700
+                  rounded-lg transition
+                "
               >
-                Cancel
+                Clear
+              </button>
+          
+              <button
+                onClick={handleOpenAlertModal}
+                disabled={selectedIds.size === 0}
+                className="
+                  flex items-center gap-2 px-4 py-2
+                  bg-red-600 hover:bg-red-700
+                  text-white text-xs font-bold rounded-full
+                  shadow-lg shadow-red-500/30
+                  disabled:opacity-40 disabled:hover:bg-red-600
+                  disabled:shadow-none transition-all
+                "
+              >
+                <Send className="w-3 h-3" />
+                ALERT
               </button>
             </div>
           </div>
+          
+        )}
+
+        {/* --- MAPPING OVERLAY --- */}
+        {residentToMap && (
+          <div className="absolute bottom-4 left-4 right-4 w-auto max-w-xs bg-white p-4 rounded-xl shadow-xl border border-orange-100 z-10">
+            <div className="flex items-center justify-between mb-2">
+              
+              {/* Left icon */}
+              <div className="bg-orange-100 p-1.5 md:p-2 rounded-full text-orange-600">
+                <UserPlus size={18} />
+              </div>
+
+              {/* Centered title */}
+              <div className="text-center flex-1 flex justify-center">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 font-semibold uppercase">Mapping:</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {residentToMap.full_name}
+                  </span>
+                </div>
+              </div>
+
+              {/* Close button */}
+              <button onClick={() => { setResidentToMap(null); setTempPin(null); }}>
+                <X size={16} />
+              </button>
+
+            </div>
+            
+              <p className="text-xs text-gray-500 mb-3">{tempPin ? "Location selected! Click save to finish." : "Tap anywhere on the map to set location."}</p>
+
+            {/* Save and Cancel Button */}
+            <div className="flex gap-2">
+              <button onClick={handleSaveLocation} disabled={!tempPin || isProcessing} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-3 md:px-4 rounded-lg flex items-center justify-center gap-1.5 md:gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm">
+                <Save size={16} className="md:w-[18px] md:h-[18px]" /> {isProcessing ? "Saving..." : "Save"}
+              </button>
+              <button onClick={cancelMapping} className="px-3 md:px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors text-sm">Cancel</button>
+            </div>
+
+          </div>
         )}
       </div>
+
+      {/* --- MODAL --- */}
+      <Modal 
+        isOpen={isAlertModalOpen} 
+        onClose={() => setIsAlertModalOpen(false)} 
+        title={
+            <span className="flex items-center gap-2">
+                <BellRing className="w-5 h-5" /> 
+                {selectedIds.size > 1 ? `Broadcast to ${selectedIds.size} Residents` : 'Send Alert'}
+            </span>
+        }
+        variant={getModalVariant()} // DYNAMIC RED HEADER!
+      >
+        <form onSubmit={handleSendAlert} className="space-y-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
+                <select 
+                    value={alertData.title}
+                    onChange={(e) => setAlertData({...alertData, title: e.target.value})}
+                    className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 bg-white"
+                >
+                    {ALERT_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message Body</label>
+                <textarea 
+                    required
+                    rows={4}
+                    value={alertData.body}
+                    onChange={(e) => setAlertData({...alertData, body: e.target.value})}
+                    placeholder="Details about this alert..."
+                    className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                />
+            </div>
+
+            <div className="pt-2">
+                <button type="submit" disabled={isProcessing} className="w-full py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition shadow-lg shadow-red-500/30 flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" />
+                    {isProcessing ? "Sending..." : "CONFIRM & SEND"}
+                </button>
+            </div>
+        </form>
+      </Modal>
+
     </div>
   );
 };
