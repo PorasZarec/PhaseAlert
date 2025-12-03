@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { toast } from "sonner";
 
-// Image import (Keep your existing logo path)
 import DSRM_LOGO from "../../assets/DSRM.png";
 
 const LoginPage = () => {
@@ -16,7 +15,7 @@ const LoginPage = () => {
   });
   
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false); // Added loading state
+  const [loading, setLoading] = useState(false);
 
   const { email, password } = formData;
 
@@ -27,7 +26,7 @@ const LoginPage = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    console.log("Step 1: Button Clicked"); // Check this
+    console.log("Step 1: Button Clicked")
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -35,7 +34,7 @@ const LoginPage = () => {
         password,
       });
 
-      console.log("Step 2: Auth Result", { data, authError }); // Check this
+      console.log("Step 2: Auth Result", { data, authError });
 
       if (authError) throw authError;
 
@@ -45,10 +44,9 @@ const LoginPage = () => {
         .eq('id', data.user.id)
         .single();
 
-      console.log("Step 3: Profile Fetch", { profile, profileError }); // Check this!!
+      console.log("Step 3: Profile Fetch", { profile, profileError });
 
       if (profileError) {
-        // Fallback if profile is missing (shouldn't happen with our triggers)
         console.error("Profile error:", profileError);
         toast.error("User profile not found.");
         setLoading(false);
@@ -57,7 +55,7 @@ const LoginPage = () => {
 
       toast.success("Logged in successfully.");
 
-      // 3. Redirect based on Role
+      // Redirect based on Role
       if (profile.role === 'admin') {
         navigate('/admin/dashboard');
       } else {
@@ -68,7 +66,7 @@ const LoginPage = () => {
       console.error(error);
       toast.error(error.message || "Login failed. Check your credentials.");
     } finally {
-      setLoading(false); // Stop loading
+      setLoading(false);
     }
   };
 

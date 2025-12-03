@@ -1,41 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Trash2, Plus, Edit2, MapPin, Mail, Phone, User, Shield, X, UserRoundPlus ,UserRoundCog   } from 'lucide-react';
-import Modal from '../shared/Modal';
+import React, { useState } from "react";
+import {
+  Search,
+  Trash2,
+  Plus,
+  Edit2,
+  MapPin,
+  Mail,
+  Phone,
+  User,
+  UserRoundPlus,
+  UserRoundCog,
+} from "lucide-react";
+import Modal from "../shared/Modal";
+import { useUsers } from "../../hooks/useUsers";
+import TabButton from "../shared/TabButton";
+import ConfirmationDialog from "../shared/ConfirmationDialog";
 
-const UserManagement = ({
-  activeTab, 
-  setActiveTab, 
-  searchQuery, 
-  setSearchQuery, 
-  isLoading, 
-  filteredUsers, 
-  handleDeleteUser,
-  handleSaveUser
-}) => {
+
+const UserManagement = () => {
+  const { users, isLoading, createUser, updateUser, deleteUser, isDeleting } = useUsers();
+
+  // Local UI State
+  const [activeTab, setActiveTab] = useState("resident");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+
   const [formData, setFormData] = useState({
-    email: '',
-    full_name: '',
-    role: 'resident',
-    address_block: '',
-    address_lot: '',
-    phone: '',
-    password: ''
+    email: "",
+    full_name: "",
+    role: "resident",
+    address_block: "",
+    address_lot: "",
+    phone: "",
+    password: "",
   });
 
-  // --- Handlers ---
-  
+  // --- FILTER LOGIC ---
+  const filteredUsers = users.filter((u) => {
+    const matchesTab = activeTab === "all" ? true : u.role === activeTab;
+    const matchesSearch =
+      u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.phone?.includes(searchQuery);
+    return matchesTab && matchesSearch;
+  });
+
+  // --- HANDLERS ---
   const openAddModal = () => {
     setCurrentUser(null);
-    setFormData({ 
-      email: '', 
-      full_name: '', 
-      role: 'resident', 
-      address_block: '', 
-      address_lot: '', 
-      phone: '',
-      password: '' 
+    setFormData({
+      email: "",
+      full_name: "",
+      role: "resident",
+      address_block: "",
+      address_lot: "",
+      phone: "",
+      password: "",
     });
     setIsModalOpen(true);
   };
@@ -43,34 +68,69 @@ const UserManagement = ({
   const openEditModal = (user) => {
     setCurrentUser(user);
     setFormData({
-      email: user.email || '',
-      full_name: user.full_name || '',
-      role: user.role || 'resident',
-      address_block: user.address_block || '',
-      address_lot: user.address_lot || '',
-      phone: user.phone || '',
-      password: '' 
+      email: user.email || "",
+      full_name: user.full_name || "",
+      role: user.role || "resident",
+      address_block: user.address_block || "",
+      address_lot: user.address_lot || "",
+      phone: user.phone || "",
+      password: "", // Password blank on edit
     });
     setIsModalOpen(true);
   };
 
-  const sanitizedData = {
-    ...formData,
-    address_block: formData.address_block ? parseInt(formData.address_block) : null,
-    address_lot: formData.address_lot ? parseInt(formData.address_lot) : null,
-    id: currentUser?.id 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    handleSaveUser(sanitizedData, !!currentUser);
-    setIsModalOpen(false);
+
+    const sanitizedData = {
+      ...formData,
+      address_block: formData.address_block
+        ? parseInt(formData.address_block)
+        : null,
+      address_lot: formData.address_lot ? parseInt(formData.address_lot) : null,
+      id: currentUser?.id,
+    };
+
+    if (currentUser) {
+      // Update
+      updateUser(sanitizedData, {
+        onSuccess: () => setIsModalOpen(false),
+      });
+    } else {
+      // Create
+      createUser(sanitizedData, {
+        onSuccess: () => setIsModalOpen(false),
+      });
+    }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleDeleteClick = (userId) => {
+    setSelectedUserId(userId);
+    setDialogOpen(true);
   };
+  
+  const handleConfirmDelete = () => {
+    // We do NOT close the dialog immediately.
+    // We wait for the mutation to finish.
+    deleteUser(selectedUserId, {
+      onSuccess: () => {
+        setDialogOpen(false);
+        // The hook already triggers a Toast, so we are good!
+      },
+      // Optional: keep dialog open on error so user can retry? 
+      // Usually better to close it and show the error toast.
+      onError: () => {
+        setDialogOpen(false); 
+      }
+    });
+  };
+  
+  
 
   return (
     <div className="space-y-4">
@@ -78,10 +138,22 @@ const UserManagement = ({
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
         {/* Tabs */}
         <div className="w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg min-w-max"> 
-            <TabButton active={activeTab === "resident"} onClick={() => setActiveTab("resident")} label="Residents" />
-            <TabButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admins" />
-            <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All Users" />
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg min-w-max">
+            <TabButton
+              active={activeTab === "resident"}
+              onClick={() => setActiveTab("resident")}
+              label="Residents"
+            />
+            <TabButton
+              active={activeTab === "admin"}
+              onClick={() => setActiveTab("admin")}
+              label="Admins"
+            />
+            <TabButton
+              active={activeTab === "all"}
+              onClick={() => setActiveTab("all")}
+              label="All Users"
+            />
           </div>
         </div>
 
@@ -89,15 +161,15 @@ const UserManagement = ({
         <div className="flex w-full md:w-auto gap-3">
           <div className="relative flex-grow md:flex-grow-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search..." 
+            <input
+              type="text"
+              placeholder="Search..."
               className="w-full pl-9 pr-4 py-2 border border-gray-200 text-sm rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button 
+          <button
             onClick={openAddModal}
             className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
@@ -109,7 +181,6 @@ const UserManagement = ({
 
       {/* --- CONTENT --- */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        
         {/* Loading State */}
         {isLoading && (
           <div className="p-12 flex justify-center">
@@ -124,7 +195,7 @@ const UserManagement = ({
           </div>
         )}
 
-        {/* DESKTOP TABLE (Hidden on Mobile) */}
+        {/* DESKTOP TABLE */}
         {!isLoading && filteredUsers.length > 0 && (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -138,12 +209,17 @@ const UserManagement = ({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={u.id}
+                    className="hover:bg-gray-50/50 transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar name={u.full_name} />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {u.full_name || "Unnamed"}
+                          </p>
                           <p className="text-xs text-gray-500">{u.email}</p>
                         </div>
                       </div>
@@ -153,18 +229,28 @@ const UserManagement = ({
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 space-y-1">
                       <div className="flex items-center gap-2 text-xs">
-                         <MapPin className="w-3 h-3 text-gray-400"/> 
-                         {u.address_block ? `Blk ${u.address_block} Lot ${u.address_lot}` : '-'}
+                        <MapPin className="w-3 h-3 text-gray-400" />
+                        {u.address_block
+                          ? `Blk ${u.address_block} Lot ${u.address_lot}`
+                          : "-"}
                       </div>
                       <div className="flex items-center gap-2 text-xs">
-                         <Phone className="w-3 h-3 text-gray-400"/> 
-                         {u.phone || '-'}
+                        <Phone className="w-3 h-3 text-gray-400" />
+                        {u.phone || "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
-                        <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
+                        <ActionButton
+                          onClick={() => openEditModal(u)}
+                          icon={<Edit2 className="w-4 h-4" />}
+                          color="text-blue-500 bg-blue-50 hover:bg-blue-200"
+                        />
+                        <ActionButton
+                          onClick={() => handleDeleteClick(u.id)}
+                          icon={<Trash2 className="w-4 h-4" />}
+                          color="text-red-500 bg-red-50 hover:bg-red-200"
+                        />
                       </div>
                     </td>
                   </tr>
@@ -174,7 +260,7 @@ const UserManagement = ({
           </div>
         )}
 
-        {/* MOBILE CARDS (Visible only on Mobile) */}
+        {/* MOBILE CARDS */}
         {!isLoading && filteredUsers.length > 0 && (
           <div className="md:hidden divide-y divide-gray-100">
             {filteredUsers.map((u) => (
@@ -183,16 +269,26 @@ const UserManagement = ({
                   <div className="flex items-center gap-3">
                     <Avatar name={u.full_name} />
                     <div>
-                      <p className="font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
+                      <p className="font-medium text-gray-900">
+                        {u.full_name || "Unnamed"}
+                      </p>
                       <RoleBadge role={u.role} />
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
-                    <ActionButton onClick={() => handleDeleteUser(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
+                    <ActionButton
+                      onClick={() => openEditModal(u)}
+                      icon={<Edit2 className="w-4 h-4" />}
+                      color="text-blue-500 bg-blue-50 hover:bg-blue-200"
+                    />
+                    <ActionButton
+                      onClick={() => handleDeleteClick(u.id)}
+                      icon={<Trash2 className="w-4 h-4" />}
+                      color="text-red-500 bg-red-50 hover:bg-red-200"
+                    />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center gap-2">
                     <Mail className="w-3.5 h-3.5 text-gray-400" />
@@ -200,11 +296,15 @@ const UserManagement = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{u.address_block ? `B:${u.address_block} L:${u.address_lot}` : 'N/A'}</span>
+                    <span>
+                      {u.address_block
+                        ? `B:${u.address_block} L:${u.address_lot}`
+                        : "N/A"}
+                    </span>
                   </div>
-                   <div className="col-span-2 flex items-center gap-2">
+                  <div className="col-span-2 flex items-center gap-2">
                     <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{u.phone || 'No Phone'}</span>
+                    <span>{u.phone || "No Phone"}</span>
                   </div>
                 </div>
               </div>
@@ -213,17 +313,18 @@ const UserManagement = ({
         )}
       </div>
 
-      {/* --- REUSABLE MODAL --- */}
+      {/* --- MODAL --- */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={currentUser ? "Edit User" : "Add New User"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          
           {/* FULL NAME */}
           <div className="space-y-2 ">
-            <label className="text-sm font-medium text-gray-700">Full Name</label>
+            <label className="text-sm font-medium text-gray-700">
+              Full Name
+            </label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
@@ -239,7 +340,9 @@ const UserManagement = ({
 
           {/* EMAIL */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Email Address</label>
+            <label className="text-sm font-medium text-gray-700">
+              Email Address
+            </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -253,14 +356,19 @@ const UserManagement = ({
                 placeholder="john@example.com"
               />
             </div>
-            {/* HINT for Whitespace error */}
-            {!currentUser && <p className="text-[10px] text-gray-400">Ensure no spaces after email</p>}
+            {!currentUser && (
+              <p className="text-[10px] text-gray-400">
+                Ensure no spaces after email
+              </p>
+            )}
           </div>
 
           {/* PASSWORD */}
           {!currentUser && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Password</label>
+              <label className="text-sm font-medium text-gray-700">
+                Password
+              </label>
               <input
                 name="password"
                 type="password"
@@ -272,10 +380,12 @@ const UserManagement = ({
               />
             </div>
           )}
-          
+
           {/* PHONE */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Phone Number</label>
+            <label className="text-sm font-medium text-gray-700">
+              Phone Number
+            </label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -295,7 +405,7 @@ const UserManagement = ({
               <label className="text-sm font-medium text-gray-700">Block</label>
               <input
                 name="address_block"
-                type="number" 
+                type="number"
                 value={formData.address_block}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
@@ -319,9 +429,8 @@ const UserManagement = ({
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Role</label>
             <div className="relative">
-
               {formData.role === "admin" ? (
-                <UserRoundCog  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <UserRoundCog className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               ) : (
                 <UserRoundPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               )}
@@ -337,7 +446,7 @@ const UserManagement = ({
                 <option value="resident">Resident</option>
                 <option value="admin">Admin</option>
               </select>
-            </div>  
+            </div>
           </div>
 
           <div className="pt-4 flex gap-3">
@@ -352,46 +461,55 @@ const UserManagement = ({
               type="submit"
               className="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
             >
-              {currentUser ? 'Save Changes' : 'Create User'}
+              {currentUser ? "Save Changes" : "Create User"}
             </button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmationDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onConfirm={handleConfirmDelete}
+        title="Delete User"
+        description="Are you sure you want to delete this user? This action cannot be undone and will remove all their data."
+        continueText={isDeleting ? "Deleting..." : "Delete User"}
+        variant="destructive"
+        isLoading={isDeleting}
+      />
+      
     </div>
   );
 };
 
-// --- Helper Components ---
-
-const TabButton = ({ active, onClick, label }) => (
-  <button
-    onClick={onClick}
-    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all whitespace-nowrap
-      ${active ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-  >
-    {label}
-  </button>
-);
+// Helper Components
 
 const Avatar = ({ name }) => (
-  <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-sm shrink-0">
-    {name ? name.charAt(0).toUpperCase() : '?'}
+  <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shrink-0">
+    {name ? name.charAt(0).toUpperCase() : "?"}
   </div>
 );
 
 const RoleBadge = ({ role }) => (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize
-    ${role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
+  <span
+    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize
+    ${
+      role === "admin"
+        ? "bg-blue-100 text-blue-800"
+        : "bg-green-100 text-green-800"
+    }`}
+  >
     {role}
   </span>
 );
 
 const ActionButton = ({ onClick, icon, color }) => (
-  <button onClick={onClick} className={`p-2 rounded-lg transition-colors ${color}`}>
+  <button
+    onClick={onClick}
+    className={`p-2 rounded-lg transition-colors ${color}`}
+  >
     {icon}
   </button>
 );
-
-
 
 export default UserManagement;

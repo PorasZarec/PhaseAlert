@@ -3,12 +3,11 @@ import React from 'react';
 const MessageBubble = ({ message, currentUserId }) => {
   const isMe = message.sender_id === currentUserId;
   
-  // Safe navigation (?) is crucial here as the join might occasionally fail or be null
   const isAdminSender = message.sender?.role === 'admin';
   const senderName = message.sender?.full_name || 'Unknown User';
   const isResidentSender = message.sender?.role === 'resident';
 
-  // Format date safely
+  // Format date
   const formatTime = (dateString) => {
     try {
       return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

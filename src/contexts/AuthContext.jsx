@@ -25,7 +25,7 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error("Error fetching role:", error.message);
-      // FALLBACK: Essential to prevent infinite loading screens
+      // FALLBACK: To prevent infinite loading screens
       setRole('resident'); 
     }
   };
@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Initial Session Check
+    // Initial Session Check
     const getSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -47,14 +47,13 @@ export function AuthProvider({ children }) {
       } catch (error) {
         console.error("Auth initialization error:", error.message);
       } finally {
-        // THE FIX: This runs 100% of the time, whether successful or failed
         if (mounted) setLoading(false);
       }
     };
 
     getSession();
 
-    // 2. Real-time Listener (Login/Logout events)
+    // Real-time Listener (Login/Logout events)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -73,7 +72,7 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Remove dependencies to run only once on mount
+  }, []);
 
   const logout = async () => {
     await supabase.auth.signOut();

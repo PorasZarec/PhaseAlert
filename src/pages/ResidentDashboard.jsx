@@ -18,14 +18,13 @@ import CreateReportTab from "../components/resident/CreateReportTab";
 import MessagingTab from "../components/resident/MessagingTab";
 import SettingsTab from "../components/resident/SettingsTab";
 
-// --- HELPER: Safely get user details from Supabase object ---
+// --- Get user details from Supabase object ---
 const getUserDisplayInfo = (user) => {
   if (!user) return { name: "Guest", initials: "?", avatar: null, email: "" };
 
-  // Supabase often stores name in user_metadata
   const meta = user.user_metadata || {};
   const name = meta.full_name || meta.name || user.email?.split('@')[0] || "Resident";
-  const avatar = meta.avatar_url || user.avatar || null; // Check both metadata and direct property
+  const avatar = meta.avatar_url || user.avatar || null;
   
   // Generate Initials
   const parts = name.split(" ");
@@ -61,7 +60,6 @@ const ResidentDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24"> 
-      {/* pb-24 ensures content isn't hidden behind the bottom nav */}
 
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
@@ -154,7 +152,6 @@ const ResidentDashboard = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* Dynamic Content based on Active Tab */}
-
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>

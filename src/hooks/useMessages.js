@@ -9,7 +9,7 @@ const fetchMessages = async ({ queryKey }) => {
   
   if (!currentUserId) return [];
 
-  // 1. Base Query
+  // Base Query
   let query = supabase
     .from('messages')
     .select(`
@@ -20,7 +20,7 @@ const fetchMessages = async ({ queryKey }) => {
     .order('created_at', { ascending: false })
     .limit(100);
 
-  // 2. Apply Logic based on Tab
+  // Apply Logic based on Tab
   if (tab === 'community') {
     // Community: Receiver is NULL
     query = query.is('receiver_id', null);

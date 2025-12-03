@@ -6,7 +6,7 @@ import {
 
 const NewsCard = ({ alert, footer }) => {
   
-  // Helper to determine styling based on category/urgency
+  // Determine styling based on category/urgency
   const getStyles = () => {
     if (alert.is_urgent) {
       return {

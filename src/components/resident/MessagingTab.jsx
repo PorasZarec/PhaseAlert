@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../services/supabaseClient'; // Adjust path
+import { supabase } from '../../services/supabaseClient';
 import MessageBubble from '../shared/MessageBubble';
 import { useMessages } from '../../hooks/useMessages';
 import { MessageSquare, ShieldAlert, Send, Users } from 'lucide-react';
 
 const MessagingTab = () => {
-  const [activeTab, setActiveTab] = useState('community'); // 'community' | 'admin_support'
+  const [activeTab, setActiveTab] = useState('community')
   const [currentUser, setCurrentUser] = useState(null);
   const [adminId, setAdminId] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   
   const scrollRef = useRef(null);
 
-  // 1. Setup User
+  // Setup User
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -25,10 +25,10 @@ const MessagingTab = () => {
     getUser();
   }, []);
 
-  // 2. Use TanStack Hook
+  // Use TanStack Hook
   const { messages, isLoading, sendMessage, isSending } = useMessages(activeTab, currentUser?.id, null);
 
-  // 3. Scroll to bottom
+  // Scroll to bottom
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
@@ -37,9 +37,6 @@ const MessagingTab = () => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    // If 'admin_support', we send to the default admin found, 
-    // OR if we are replying to a thread, the backend logic handles it.
-    // For simplicity: Residents always message the "Primary Admin" initially.
     const receiver = activeTab === 'community' ? null : adminId;
 
     sendMessage({ content: newMessage, receiverId: receiver }, {

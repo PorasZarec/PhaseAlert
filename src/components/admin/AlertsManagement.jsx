@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { supabase } from "../../services/supabaseClient";
 import { useAlerts } from "../../hooks/useAlerts"; // Import the new hook
 import Modal from "../shared/Modal";
-import ImageUpload from "../shared/ImageUpload";
 import NewsCard from "../shared/NewsCard";
 import { Plus, Search, Trash2, Edit2, ChevronDown } from "lucide-react";
 import { CATEGORIES, ALERT_TYPES } from "../../data/HelperData";
+import TabButton from "../shared/TabButton";
+import ConfirmationDialog from "../shared/ConfirmationDialog";
 
 const AlertsManagement = () => {
   // Hook
@@ -17,14 +18,18 @@ const AlertsManagement = () => {
     deleteAlert,
     isCreating,
     isUpdating,
+    isDeleting
   } = useAlerts();
 
   // UI State
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState("All");
+  const [activeCategory, setActiveCategory] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentAlert, setCurrentAlert] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [selectedAlertId, setSelectedAlertId] = useState(null);
 
   // Form State
   const initialFormState = {
@@ -37,7 +42,7 @@ const AlertsManagement = () => {
   };
   const [formData, setFormData] = useState(initialFormState);
 
-  // 3. Handle Submit (Refactored to use Mutations)
+  // Handle Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -69,15 +74,14 @@ const AlertsManagement = () => {
 
       handleCloseModal();
     } catch (error) {
-      // Errors are handled in the hook via toast, but we catch here to stop execution if needed
       console.error("Form submission error", error);
     }
   };
 
-  // 4. Handle Delete
+  // Handle Delete
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this alert?")) return;
-    await deleteAlert(id);
+    setSelectedAlertId(id);
+    setDialogOpen(true);
   };
 
   // Helper to close modal and reset form
@@ -85,6 +89,15 @@ const AlertsManagement = () => {
     setIsModalOpen(false);
     setCurrentAlert(null);
     setFormData(initialFormState);
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteAlert(selectedAlertId);
+      setDialogOpen(false);
+    } catch (error) {
+      console.error("Delete error", error);
+    }
   };
 
   const handleEditClick = (alert) => {
@@ -110,13 +123,18 @@ const AlertsManagement = () => {
 
   // Client-side filtering logic
   const filteredAlerts = alerts.filter((alert) => {
+    let matchesCategory = true;
+
+    if (activeCategory === "Urgent") {
+      matchesCategory = alert.is_urgent === true;
+    } else if (activeCategory !== "All") {
+      matchesCategory = alert.category === activeCategory;
+    }
+
     const matchesSearch =
       alert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       alert.body?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = 
-      filter === "All" || 
-      (filter === "Urgent" ? alert.is_urgent : alert.category === filter);
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesCategory;
   });
 
   const openModal = (alert = null) => {
@@ -146,10 +164,6 @@ const AlertsManagement = () => {
     setIsModalOpen(true);
   };
 
-  const handleImageUploaded = (url) => {
-    setFormData((prev) => ({ ...prev, image_url: url }));
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Bar */}
@@ -157,18 +171,12 @@ const AlertsManagement = () => {
         {/* Categories Pills */}
         <div className="flex gap-2 w-full md:w-auto overflow-x-auto rounded-xl p-2 bg-gray-50">
           {CATEGORIES.map(({ key, label }) => (
-            <button
+            <TabButton
               key={key}
-              onClick={() => setFilter(key)}
-              className={`px-4 py-2 font-medium rounded-md text-sm whitespace-nowrap transition-all 
-                ${
-                  filter === key
-                    ? "bg-amber-100 text-amber-700 shadow-sm ring-1 ring-amber-200"
-                    : "text-gray-500 hover:bg-white"
-                }`}
-            >
-              {label}
-            </button>
+              label={label}
+              active={activeCategory === key}
+              onClick={() => setActiveCategory(key)}
+            />
           ))}
         </div>
 
@@ -338,11 +346,6 @@ const AlertsManagement = () => {
             />
           </div>
 
-          <ImageUpload
-            onUploadComplete={handleImageUploaded}
-            initialImage={formData.image_url}
-          />
-
           <button
             type="submit"
             className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors shadow-sm"
@@ -351,6 +354,18 @@ const AlertsManagement = () => {
           </button>
         </form>
       </Modal>
+
+      <ConfirmationDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onConfirm={handleConfirmDelete}
+        title="Delete Announcement"
+        description="Are you sure you want to delete this announcement? This action cannot be undone."
+        continueText={isDeleting ? "Deleting..." : "Delete"}
+        variant="destructive"
+        isLoading={isDeleting}
+      />
+
     </div>
   );
 };

@@ -17,15 +17,15 @@ const fetchResidents = async () => {
 export const useResidents = () => {
   const queryClient = useQueryClient();
 
-  // 1. READ (Fetch Residents)
+  // READ (Fetch Residents)
   const query = useQuery({
     queryKey: ['residents'],
     queryFn: fetchResidents,
-    staleTime: 0,            // <--- (Always fetch new data)
-    refetchInterval: 3000,   // <--- heck every 3 seconds
+    staleTime: 0,
+    refetchInterval: 3000,
   });
 
-  // 2. UPDATE (Save Location)
+  // UPDATE (Save Location)
   const updateLocationMutation = useMutation({
     mutationFn: async ({ id, latitude, longitude }) => {
       const { error } = await supabase
