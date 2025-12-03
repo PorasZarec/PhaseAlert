@@ -28,7 +28,7 @@ const MessageBubble = ({ message, currentUserId }) => {
             <span className="bg-blue-100 text-blue-700 px-1.5 rounded text-[9px] font-bold">ADMIN</span>
           )}
           {isResidentSender && (
-            <span className="bg-blue-100 text-blue-700 px-1.5 rounded text-[9px] font-bold">RESIDENT</span>
+            <span className="bg-cyan-100 text-cyan-700 px-1.5 rounded text-[9px] font-bold">RESIDENT</span>
           )}
         </span>
       )}

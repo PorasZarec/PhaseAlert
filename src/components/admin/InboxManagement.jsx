@@ -31,7 +31,7 @@ const InboxManagement = () => {
       // Adjust 'profiles' to your actual table name if different
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, address_block, avatar_url, role')
+        .select('id, full_name, address_block, address_lot, avatar_url, role')
         .neq('id', currentUser?.id || '') // Don't show myself in the list
         // Optional: Filter by role if you only want residents
         // .eq('role', 'resident') 
@@ -171,7 +171,7 @@ const InboxManagement = () => {
                 
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{resident.full_name || 'Unnamed User'}</p>
-                  <p className="text-xs text-gray-400 truncate">Blk {resident.address_block || 'N/A'}</p>
+                  <p className="text-xs text-gray-400 truncate">BLK {resident.address_block || 'N/A'} Lot {resident.address_lot || 'N/A'}</p>
                 </div>
               </button>
             ))
@@ -208,7 +208,7 @@ const InboxManagement = () => {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-800 text-sm lg:text-base">{selectedResident.full_name}</h3>
-                  <p className="text-[10px] lg:text-xs text-gray-500">Blk {selectedResident.address_block}</p>
+                  <p className="text-[10px] lg:text-xs text-gray-500">BLK {selectedResident.address_block || 'N/A'} LOT {selectedResident.address_lot || 'N/A'}</p>
                 </div>
               </>
             ) : (
