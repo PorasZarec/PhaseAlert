@@ -108,7 +108,7 @@ const AlertsManagement = () => {
       body: alert.body,
       is_urgent: alert.is_urgent,
       image_url: alert.image_url || "",
-      expires_at: alert.expires_at ? alert.expires_at.slice(0, 16) : "", // Format for datetime-local input
+      expires_at: alert.expires_at ? alert.expires_at.slice(0, 16) : "",
     });
     setIsModalOpen(true);
   };

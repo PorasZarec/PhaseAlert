@@ -9,6 +9,9 @@ import {
 import { supabase } from "../../services/supabaseClient";
 import { toast } from "sonner";
 import { useResidents } from "../../hooks/useResidents";
+import { useMapAlerts } from "../../hooks/useMapAlerts";
+import { calculateZonePoints } from "../../lib/geoUtils";
+
 import {
   Save,
   X,
@@ -43,8 +46,25 @@ console.warn = (...args) => {
   originalWarn(...args);
 };
 
+// --- DYNAMIC SVG PIN ---
+// This draws a Google Maps-style pin in any color we want.
+const getDynamicPin = (color) => {
+  return {
+    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+    fillColor: color,
+    fillOpacity: 1,
+    strokeWeight: 1.5,
+    strokeColor: "#FFFFFF", // White border to make it pop
+    scale: 2,
+    anchor: new window.google.maps.Point(12, 22), // Anchors the bottom tip of the pin
+  };
+};
+
 const MapManagement = () => {
-  const {
+
+	const { createMapAlert, isCreating } = useMapAlerts();
+
+	const {
     residents,
     isLoading: isResidentsLoading,
     updateLocation,
@@ -70,6 +90,7 @@ const MapManagement = () => {
     title: ALERT_TYPES[0],
     body: "",
     type: "info",
+    duration: 24, // Default 24 hours
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -129,68 +150,72 @@ const MapManagement = () => {
 
   // --- ALERT LOGIC ---
   const handleOpenAlertModal = (singleResident = null) => {
-    if (singleResident) {
-      setSelectedIds(new Set([singleResident.id])); // Reset selection to just one
-    }
+        // 1. Check if singleResident is actually a valid user object (and not a Click Event)
+        const isResidentObject = singleResident && singleResident.id;
 
-    setAlertData({ title: ALERT_TYPES[0], body: "", type: "info" });
-    setIsAlertModalOpen(true);
-  };
+        if (isResidentObject) {
+          // If clicked from a specific Pin InfoWindow, force selection to just that user
+          setSelectedIds(new Set([singleResident.id]));
+        }
 
-  const handleSendAlert = async (e) => {
-    e.preventDefault();
-    if (selectedIds.size === 0) {
-      toast.error("No residents selected");
-      return;
-    }
-    setIsProcessing(true);
+        // 2. Reset Form Data (FIXED: Added duration back so it doesn't crash)
+        setAlertData({
+          title: ALERT_TYPES[0],
+          body: "",
+          type: "info",
+          duration: 24 // <--- THIS WAS MISSING
+        });
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        setIsAlertModalOpen(true);
+      };
 
-      // Determine Priority
-      let alertType = "info";
-      if (
-        alertData.title.includes("Emergency") ||
-        alertData.title.includes("Storm")
-      )
-        alertType = "emergency";
-      if (
-        alertData.title.includes("Outage") ||
-        alertData.title.includes("Interruption")
-      )
-        alertType = "warning";
+  const handleSendAlert = (e) => {
+      e.preventDefault();
+      if (selectedIds.size === 0) {
+        toast.error("No residents selected");
+        return;
+      }
 
-      // Bulk Insert Array
-      const notifications = Array.from(selectedIds).map((recipientId) => ({
-        recipient_id: recipientId,
-        sender_id: user.id,
-        title: alertData.title,
-        body: alertData.body,
-        type: alertType,
-        is_read: false,
+      // 1. Gather Coordinates
+		const selectedResidentsData = residents.filter(r => selectedIds.has(r.id));
+
+		// USE NEW FUNCTION: Just get the dots, don't calculate a shape
+  	const affectedArea = calculateZonePoints(selectedResidentsData);
+
+      // ✅ CORRECT: We create a simple array of {lat, lng} objects
+      const points = selectedResidentsData.map(r => ({
+        lat: Number(r.latitude),  // Ensure these are numbers!
+        lng: Number(r.longitude)
       }));
 
-      const { error } = await supabase
-        .from("notifications")
-        .insert(notifications);
-      if (error) throw error;
+      // 3. Determine Type
+      let alertType = "info";
+      if (alertData.title.includes("Emergency") || alertData.title.includes("Storm")) alertType = "emergency";
+      else if (alertData.title.includes("Outage") || alertData.title.includes("Interruption")) alertType = "warning";
 
-      toast.success(`Alert sent to ${selectedIds.size} resident(s)`);
+      // CALCULATE EXPIRATION
+      const expiresAt = new Date(Date.now() + alertData.duration * 60 * 60 * 1000).toISOString();
 
-      setIsAlertModalOpen(false);
-      setSelectedIds(new Set()); // Clear selection
-      setIsSelectMode(false); // Exit select mode
-      setSelectedResident(null); // Close info window
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to send alerts");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+      // 4. Send to Backend
+      supabase.auth.getUser().then(({ data: { user } }) => {
+      createMapAlert({
+        title: alertData.title,
+        body: alertData.body,
+				type: alertType,
+        expiresAt: expiresAt,
+        affectedArea: affectedArea,
+        recipientIds: Array.from(selectedIds),
+        senderId: user.id
+      }, {
+        onSuccess: () => {
+          setIsAlertModalOpen(false);
+          setSelectedIds(new Set());
+          setIsSelectMode(false);
+          setSelectedResident(null);
+        }
+      });
+      });
+    };
 
   const cancelMapping = () => {
     setResidentToMap(null);
@@ -326,27 +351,22 @@ const MapManagement = () => {
               const lng = Number(resident.longitude);
 
               // If data is corrupt (NaN), skip rendering this pin to prevent crash
-              if (isNaN(lat) || isNaN(lng)) return null;
+							if (isNaN(lat) || isNaN(lng)) return null;
 
-              // DYNAMIC PIN COLOR LOGIC
-              const isSelected = selectedIds.has(resident.id);
-              const iconUrl = isSelected ? "/blue-pin.png" : "/black-pin.png";
+							const isSelected = selectedIds.has(resident.id);
+
+							// NEW: Use SVG Pin instead of PNG
+              // Blue if selected, Gray if not.
+              // (You can also color them Red here if you want to show active admin alerts, but that requires fetching alerts in this file)
+              const pinColor = isSelected ? "#2563EB" : "#374151";
 
               return (
                 <Marker
                   key={resident.id}
                   position={{ lat, lng }}
                   onClick={() => handleMarkerClick(resident)}
-                  icon={{
-                    url: iconUrl,
-                    scaledSize: new window.google.maps.Size(
-                      isSelected ? 25 : 25,
-                      isSelected ? 30 : 30
-                    ),
-                  }}
-                  animation={
-                    isSelected ? window.google.maps.Animation.BOUNCE : null
-                  }
+                  icon={getDynamicPin(pinColor)} // <--- USE THE SVG FUNCTION
+                  animation={isSelected ? window.google.maps.Animation.BOUNCE : null}
                 />
               );
             })}
@@ -430,7 +450,7 @@ const MapManagement = () => {
                 </button>
 
                 <button
-                  onClick={handleOpenAlertModal}
+                	onClick={() => handleOpenAlertModal(null)}
                   disabled={selectedIds.size === 0}
                   className="
                   flex items-center gap-2 px-4 py-2
@@ -561,9 +581,32 @@ const MapManagement = () => {
                 placeholder="Details about this alert..."
                 className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 resize-none"
               />
-            </div>
+						</div>
 
-            <div className="pt-2">
+						{/* Expiration */}
+						<div>
+						  <label className="block text-sm font-medium text-gray-700 mb-1">
+						    Duration
+						  </label>
+						  <select
+						    value={alertData.duration}
+						    onChange={(e) => setAlertData({ ...alertData, duration: Number(e.target.value) })}
+						    className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-red-500 bg-white"
+						  >
+						    {/* --- DEMO OPTIONS --- */}
+						    <option value={0.0167}>1 Minute (Demo)</option>
+						    <option value={0.0833}>5 Minutes (Demo)</option>
+
+						    {/* --- STANDARD OPTIONS --- */}
+						    <option value={1}>1 Hour (Quick Update)</option>
+						    <option value={6}>6 Hours</option>
+						    <option value={12}>12 Hours</option>
+						    <option value={24}>24 Hours (1 Day)</option>
+						    <option value={72}>3 Days (Storm/Event)</option>
+						  </select>
+						</div>
+
+						<div className="pt-2">
               <button
                 type="submit"
                 disabled={isProcessing}

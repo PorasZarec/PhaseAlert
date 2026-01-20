@@ -47,7 +47,7 @@ export const useAlerts = () => {
         .update(updates)
         .eq('id', id)
         .select();
-        
+
       if (error) throw error;
       return data;
     },
