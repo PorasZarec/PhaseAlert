@@ -10,15 +10,15 @@ import {
   User,
   UserRoundPlus,
   UserRoundCog,
+  MapPinOff,
 } from "lucide-react";
 import Modal from "../shared/Modal";
 import { useUsers } from "../../hooks/useUsers";
 import TabButton from "../shared/TabButton";
-import ConfirmationDialog from "../shared/ConfirmationDialog";
-
+import ConfirmationDialog from "../shared/ConfirmationDialog"; //
 
 const UserManagement = () => {
-  const { users, isLoading, createUser, updateUser, deleteUser, isDeleting } = useUsers();
+  const { users, isLoading, createUser, updateUser, deleteUser, isDeleting, isUpdating } = useUsers();
 
   // Local UI State
   const [activeTab, setActiveTab] = useState("resident");
@@ -27,8 +27,11 @@ const UserManagement = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [confirmationAction, setConfirmationAction] = useState(null); // 'delete' or 'reset'
+  const [targetId, setTargetId] = useState(null); // ID of user to delete or reset
 
   const [formData, setFormData] = useState({
     email: "",
@@ -74,7 +77,7 @@ const UserManagement = () => {
       address_block: user.address_block || "",
       address_lot: user.address_lot || "",
       phone: user.phone || "",
-      password: "", // Password blank on edit
+      password: "",
     });
     setIsModalOpen(true);
   };
@@ -89,75 +92,93 @@ const UserManagement = () => {
 
     const sanitizedData = {
       ...formData,
-      address_block: formData.address_block
-        ? parseInt(formData.address_block)
-        : null,
+      address_block: formData.address_block ? parseInt(formData.address_block) : null,
       address_lot: formData.address_lot ? parseInt(formData.address_lot) : null,
       id: currentUser?.id,
     };
 
     if (currentUser) {
-      // Update
       updateUser(sanitizedData, {
         onSuccess: () => setIsModalOpen(false),
       });
     } else {
-      // Create
       createUser(sanitizedData, {
         onSuccess: () => setIsModalOpen(false),
       });
     }
   };
 
+  // --- DIALOG HANDLERS ---
+
+  // 1. Trigger Delete
   const handleDeleteClick = (userId) => {
-    setSelectedUserId(userId);
+    setTargetId(userId);
+    setConfirmationAction("delete");
     setDialogOpen(true);
   };
-  
-  const handleConfirmDelete = () => {
-    // We do NOT close the dialog immediately.
-    // We wait for the mutation to finish.
-    deleteUser(selectedUserId, {
-      onSuccess: () => {
-        setDialogOpen(false);
-        // The hook already triggers a Toast, so we are good!
-      },
-      // Optional: keep dialog open on error so user can retry? 
-      // Usually better to close it and show the error toast.
-      onError: () => {
-        setDialogOpen(false); 
-      }
-    });
+
+  // 2. Trigger Reset Location
+  const handleResetLocationClick = () => {
+    if (!currentUser) return;
+    setTargetId(currentUser.id);
+    setConfirmationAction("reset");
+    setDialogOpen(true);
   };
-  
-  
+
+  // 3. Confirm Logic (Switches based on action)
+  const handleConfirmAction = () => {
+    if (confirmationAction === "delete") {
+      deleteUser(targetId, {
+        onSuccess: () => setDialogOpen(false),
+        onError: () => setDialogOpen(false)
+      });
+    } else if (confirmationAction === "reset") {
+      updateUser({
+        ...formData, // Keep existing form data to avoid overwriting with blanks
+        id: targetId,
+        latitude: null,
+        longitude: null
+      }, {
+        onSuccess: () => {
+          setDialogOpen(false);
+          // Update local state to hide the button immediately in the modal
+          setCurrentUser(prev => ({ ...prev, latitude: null, longitude: null }));
+        },
+        onError: () => setDialogOpen(false)
+      });
+    }
+  };
+
+  // Dynamic Dialog Content
+  const getDialogContent = () => {
+    if (confirmationAction === "reset") {
+      return {
+        title: "Reset Map Location",
+        desc: "Are you sure you want to remove this user's pin from the map? They will appear as 'Unmapped' until a new location is set.",
+        btn: "Remove Location"
+      };
+    }
+    return {
+      title: "Delete User",
+      desc: "Are you sure you want to delete this user? This action cannot be undone and will remove all their data.",
+      btn: "Delete User"
+    };
+  };
+
+  const dialogContent = getDialogContent();
 
   return (
     <div className="space-y-4">
       {/* --- Top Bar --- */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-        {/* Tabs */}
         <div className="w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg min-w-max">
-            <TabButton
-              active={activeTab === "resident"}
-              onClick={() => setActiveTab("resident")}
-              label="Residents"
-            />
-            <TabButton
-              active={activeTab === "admin"}
-              onClick={() => setActiveTab("admin")}
-              label="Admins"
-            />
-            <TabButton
-              active={activeTab === "all"}
-              onClick={() => setActiveTab("all")}
-              label="All Users"
-            />
+            <TabButton active={activeTab === "resident"} onClick={() => setActiveTab("resident")} label="Residents" />
+            <TabButton active={activeTab === "admin"} onClick={() => setActiveTab("admin")} label="Admins" />
+            <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All Users" />
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex w-full md:w-auto gap-3">
           <div className="relative flex-grow md:flex-grow-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -181,14 +202,12 @@ const UserManagement = () => {
 
       {/* --- CONTENT --- */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Loading State */}
         {isLoading && (
           <div className="p-12 flex justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
           </div>
         )}
 
-        {/* Empty State */}
         {!isLoading && filteredUsers.length === 0 && (
           <div className="p-12 text-center text-gray-500">
             No users found matching your search.
@@ -209,17 +228,12 @@ const UserManagement = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredUsers.map((u) => (
-                  <tr
-                    key={u.id}
-                    className="hover:bg-gray-50/50 transition-colors"
-                  >
+                  <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar name={u.full_name} />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {u.full_name || "Unnamed"}
-                          </p>
+                          <p className="text-sm font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
                           <p className="text-xs text-gray-500">{u.email}</p>
                         </div>
                       </div>
@@ -230,9 +244,7 @@ const UserManagement = () => {
                     <td className="px-6 py-4 text-sm text-gray-500 space-y-1">
                       <div className="flex items-center gap-2 text-xs">
                         <MapPin className="w-3 h-3 text-gray-400" />
-                        {u.address_block
-                          ? `Blk ${u.address_block} Lot ${u.address_lot}`
-                          : "-"}
+                        {u.address_block ? `Blk ${u.address_block} Lot ${u.address_lot}` : "-"}
                       </div>
                       <div className="flex items-center gap-2 text-xs">
                         <Phone className="w-3 h-3 text-gray-400" />
@@ -241,16 +253,8 @@ const UserManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <ActionButton
-                          onClick={() => openEditModal(u)}
-                          icon={<Edit2 className="w-4 h-4" />}
-                          color="text-blue-500 bg-blue-50 hover:bg-blue-200"
-                        />
-                        <ActionButton
-                          onClick={() => handleDeleteClick(u.id)}
-                          icon={<Trash2 className="w-4 h-4" />}
-                          color="text-red-500 bg-red-50 hover:bg-red-200"
-                        />
+                        <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
+                        <ActionButton onClick={() => handleDeleteClick(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
                       </div>
                     </td>
                   </tr>
@@ -269,26 +273,15 @@ const UserManagement = () => {
                   <div className="flex items-center gap-3">
                     <Avatar name={u.full_name} />
                     <div>
-                      <p className="font-medium text-gray-900">
-                        {u.full_name || "Unnamed"}
-                      </p>
+                      <p className="font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
                       <RoleBadge role={u.role} />
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <ActionButton
-                      onClick={() => openEditModal(u)}
-                      icon={<Edit2 className="w-4 h-4" />}
-                      color="text-blue-500 bg-blue-50 hover:bg-blue-200"
-                    />
-                    <ActionButton
-                      onClick={() => handleDeleteClick(u.id)}
-                      icon={<Trash2 className="w-4 h-4" />}
-                      color="text-red-500 bg-red-50 hover:bg-red-200"
-                    />
+                    <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
+                    <ActionButton onClick={() => handleDeleteClick(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                   <div className="flex items-center gap-2">
                     <Mail className="w-3.5 h-3.5 text-gray-400" />
@@ -296,11 +289,7 @@ const UserManagement = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                    <span>
-                      {u.address_block
-                        ? `B:${u.address_block} L:${u.address_lot}`
-                        : "N/A"}
-                    </span>
+                    <span>{u.address_block ? `B:${u.address_block} L:${u.address_lot}` : "N/A"}</span>
                   </div>
                   <div className="col-span-2 flex items-center gap-2">
                     <Phone className="w-3.5 h-3.5 text-gray-400" />
@@ -313,119 +302,69 @@ const UserManagement = () => {
         )}
       </div>
 
-      {/* --- MODAL --- */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={currentUser ? "Edit User" : "Add New User"}
-      >
+      {/* --- FORM MODAL --- */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentUser ? "Edit User" : "Add New User"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* FULL NAME */}
+
           <div className="space-y-2 ">
-            <label className="text-sm font-medium text-gray-700">
-              Full Name
-            </label>
+            <label className="text-sm font-medium text-gray-700">Full Name</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                name="full_name"
-                required
-                value={formData.full_name}
-                onChange={handleChange}
-                className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                placeholder="John Doe"
-              />
+              <input name="full_name" required value={formData.full_name} onChange={handleChange} className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="John Doe" />
             </div>
           </div>
 
-          {/* EMAIL */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Email Address
-            </label>
+            <label className="text-sm font-medium text-gray-700">Email Address</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                name="email"
-                type="email"
-                required
-                disabled={!!currentUser}
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200 disabled:bg-gray-100"
-                placeholder="john@example.com"
-              />
+              <input name="email" type="email" required disabled={!!currentUser} value={formData.email} onChange={handleChange} className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200 disabled:bg-gray-100" placeholder="john@example.com" />
             </div>
-            {!currentUser && (
-              <p className="text-[10px] text-gray-400">
-                Ensure no spaces after email
-              </p>
-            )}
           </div>
 
-          {/* PASSWORD */}
           {!currentUser && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                name="password"
-                type="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                placeholder="Min. 6 characters"
-              />
+              <label className="text-sm font-medium text-gray-700">Password</label>
+              <input name="password" type="password" required value={formData.password} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="Min. 6 characters" />
             </div>
           )}
 
-          {/* PHONE */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
-              Phone Number
-            </label>
+            <label className="text-sm font-medium text-gray-700">Phone Number</label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                name="phone"
-                type="text"
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                placeholder="0912 345 6789"
-              />
+              <input name="phone" type="text" value={formData.phone} onChange={handleChange} className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="0912 345 6789" />
             </div>
           </div>
 
-          {/* ADDRESS */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Block</label>
-              <input
-                name="address_block"
-                type="number"
-                value={formData.address_block}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                placeholder="0"
-              />
+              <input name="address_block" type="number" value={formData.address_block} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="0" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Lot</label>
-              <input
-                name="address_lot"
-                type="number"
-                value={formData.address_lot}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200"
-                placeholder="0"
-              />
+              <input name="address_lot" type="number" value={formData.address_lot} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="0" />
             </div>
           </div>
 
-          {/* ROLE */}
+          {/* RESET LOCATION BUTTON (Opens Confirmation Dialog) */}
+          {currentUser && currentUser.latitude && (
+             <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
+                <div className="text-xs text-gray-600">
+                  <span className="font-bold block text-gray-800">Has Map Location</span>
+                  Lat: {currentUser.latitude.toFixed(5)}, Lng: {currentUser.longitude.toFixed(5)}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetLocationClick}
+                  className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium px-2 py-1 hover:bg-red-50 rounded transition"
+                >
+                  <MapPinOff className="w-3 h-3" /> Reset Location
+                </button>
+             </div>
+          )}
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Role</label>
             <div className="relative">
@@ -434,15 +373,7 @@ const UserManagement = () => {
               ) : (
                 <UserRoundPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               )}
-
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full pl-9 p-2 border border-gray-300 rounded-lg 
-                          focus:ring-2 focus:ring-amber-500 focus:border-amber-500 
-                          outline-none transition duration-200 bg-white"
-              >
+              <select name="role" value={formData.role} onChange={handleChange} className="w-full pl-9 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200 bg-white">
                 <option value="resident">Resident</option>
                 <option value="admin">Admin</option>
               </select>
@@ -450,40 +381,30 @@ const UserManagement = () => {
           </div>
 
           <div className="pt-4 flex gap-3">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
-            >
+            <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+            <button type="submit" className="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium">
               {currentUser ? "Save Changes" : "Create User"}
             </button>
           </div>
         </form>
       </Modal>
 
+      {/* --- CONFIRMATION DIALOG (Shared for Delete & Reset) --- */}
       <ConfirmationDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onConfirm={handleConfirmDelete}
-        title="Delete User"
-        description="Are you sure you want to delete this user? This action cannot be undone and will remove all their data."
-        continueText={isDeleting ? "Deleting..." : "Delete User"}
+        onConfirm={handleConfirmAction}
+        title={dialogContent.title}
+        description={dialogContent.desc}
+        continueText={isDeleting || isUpdating ? "Processing..." : dialogContent.btn}
         variant="destructive"
-        isLoading={isDeleting}
+        isLoading={isDeleting || isUpdating}
       />
-      
     </div>
   );
 };
 
 // Helper Components
-
 const Avatar = ({ name }) => (
   <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shrink-0">
     {name ? name.charAt(0).toUpperCase() : "?"}
@@ -491,23 +412,13 @@ const Avatar = ({ name }) => (
 );
 
 const RoleBadge = ({ role }) => (
-  <span
-    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize
-    ${
-      role === "admin"
-        ? "bg-blue-100 text-blue-800"
-        : "bg-green-100 text-green-800"
-    }`}
-  >
+  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${role === "admin" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}`}>
     {role}
   </span>
 );
 
 const ActionButton = ({ onClick, icon, color }) => (
-  <button
-    onClick={onClick}
-    className={`p-2 rounded-lg transition-colors ${color}`}
-  >
+  <button onClick={onClick} className={`p-2 rounded-lg transition-colors ${color}`}>
     {icon}
   </button>
 );
