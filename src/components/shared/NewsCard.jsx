@@ -1,11 +1,11 @@
 import React from 'react';
-import { 
-  Megaphone, AlertTriangle, Calendar, 
+import {
+  Megaphone, AlertTriangle, Calendar,
   CircleAlert, Clock
 } from 'lucide-react';
 
 const NewsCard = ({ alert, footer }) => {
-  
+
   // Determine styling based on category/urgency
   const getStyles = () => {
     if (alert.is_urgent) {
@@ -15,8 +15,8 @@ const NewsCard = ({ alert, footer }) => {
         iconBox: "bg-red-700 text-red-100",
         icon: <AlertTriangle className="w-5 h-5 text-red-100" />,
       };
-    }    
-    
+    }
+
     switch (alert.category) {
       case 'Event':
         return {
@@ -54,7 +54,7 @@ const NewsCard = ({ alert, footer }) => {
             {styles.icon}
           </div>
           <div>
-          <h3 className={`font-semibold line-clamp-1 
+          <h3 className={`font-semibold line-clamp-1
             ${alert.is_urgent ? "text-white" : "text-gray-800"}`}
           >
             {alert.title}
@@ -65,7 +65,7 @@ const NewsCard = ({ alert, footer }) => {
             >
               {alert.category} • {new Date(alert.created_at).toLocaleDateString()}
             </p>
-            
+
           </div>
         </div>
       </div>
@@ -73,22 +73,22 @@ const NewsCard = ({ alert, footer }) => {
       {/* Body Content */}
       <div className="p-5 flex-grow">
         {alert.image_url && (
-          <img 
-            src={alert.image_url} 
-            alt="Alert" 
-            className="w-full h-40 object-cover rounded-lg mb-3 bg-gray-100" 
+          <img
+            src={alert.image_url}
+            alt="Alert"
+            className="w-full h-40 object-cover rounded-lg mb-3 bg-gray-100"
           />
         )}
         <p className="text-gray-600 text-sm line-clamp-4 whitespace-pre-line">
           {alert.body}
         </p>
-        
-        {alert.expires_at && (
+
+        {/* {alert.expires_at && (
           <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 w-fit px-2 py-1 rounded-md">
-            <Clock className="w-3 h-3" /> 
+            <Clock className="w-3 h-3" />
             Expires: {new Date(alert.expires_at).toLocaleDateString()}
           </div>
-        )}
+        )}*/}
       </div>
 
       {/* Footer Section (Dynamic) */}

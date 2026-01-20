@@ -5,14 +5,17 @@ import { toast } from 'sonner';
 export const useMapAlerts = () => {
   const queryClient = useQueryClient();
 
+  // 1. FETCH ONLY ACTIVE ZONES (Resident View)
   const fetchActiveZones = async () => {
+    // Generate ISO string (UTC) to compare against DB timestamps
     const now = new Date().toISOString();
-    // Only fetch alerts that have NOT expired and have coordinates
+
     const { data, error } = await supabase
       .from('alerts')
       .select('*')
+      // STRICT FILTER: Expire time must be greater than NOW
       .gt('expires_at', now)
-      .not('affected_area', 'is', null)
+      .not('affected_area', 'is', null) // Only ones with map zones
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -22,9 +25,10 @@ export const useMapAlerts = () => {
   const { data: activeZones, isLoading: isLoadingZones } = useQuery({
     queryKey: ['mapActiveZones'],
     queryFn: fetchActiveZones,
-    refetchInterval: 30000, // Check every 30s to auto-remove expired zones
+    refetchInterval: 10000, // Check every 10s for expiration
   });
 
+  // 2. CREATE MAP ALERT (Admin View)
   const createMapAlertMutation = useMutation({
   mutationFn: async ({ title, body, type, affectedArea, recipientIds, senderId, expiresAt }) => {
     const { data: alertData, error: alertError } = await supabase
@@ -44,6 +48,7 @@ export const useMapAlerts = () => {
 
       if (alertError) throw alertError;
 
+      // Notifications logic
       if (recipientIds.length > 0) {
         const notifications = recipientIds.map(id => ({
           recipient_id: id,

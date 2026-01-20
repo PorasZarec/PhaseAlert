@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { GoogleMap, useLoadScript, Marker, InfoWindow, Polygon, Circle } from "@react-google-maps/api";
+// REMOVED: useLoadScript import
+import { GoogleMap, Marker, InfoWindow, Polygon, Circle } from "@react-google-maps/api";
 import { supabase } from "../../services/supabaseClient";
 import { toast } from "sonner";
 import { useResidents } from "../../hooks/useResidents";
@@ -9,9 +10,9 @@ import { Save, X, UserPlus, MapIcon, BellRing, Send, CheckSquare, Square, Users,
 import Modal from "../shared/Modal";
 import { ALERT_TYPES, VILLAGE_CENTER, VILLAGE_BOUNDARY } from "../../data/HelperData";
 
-const libraries = ["places"];
 const mapContainerStyle = { width: "100%", height: "calc(100vh - 180px)", borderRadius: "12px" };
 
+// Suppress deprecated warnings
 const originalWarn = console.warn;
 console.warn = (...args) => {
   if (args[0]?.includes?.("google.maps.Marker is deprecated")) return;
@@ -32,7 +33,7 @@ const getDynamicPin = (color) => {
 
 const MapManagement = () => {
   const { createMapAlert, activeZones } = useMapAlerts();
-  const { residents, updateLocation, isUpdating } = useResidents();
+  const { residents, updateLocation } = useResidents();
 
   const mappedResidents = residents.filter((r) => r.latitude && r.longitude);
   const unmappedResidents = residents.filter((r) => !r.latitude || !r.longitude);
@@ -47,19 +48,20 @@ const MapManagement = () => {
   const [alertData, setAlertData] = useState({ title: ALERT_TYPES[0], body: "", type: "info", duration: 24 });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
+  // REMOVED: useLoadScript hook block entirely.
+  // The parent component (AdminDashboard) now wraps this in <GoogleMapsLoader>
 
-  // Calculate Unique Circles for rendering (Lighter opacity for Admin)
   const uniqueCircles = useMemo(() => {
     if (!activeZones) return [];
     const locationMap = new Map();
-    const severityScore = { info: 1, warning: 2, emergency: 3 };
+    const severityScore = { emergency: 4, warning: 3, info: 2, default: 1 };
 
     activeZones.forEach((alert) => {
-      const score = severityScore[alert.category] || 1;
+      let score = 1;
+      const lower = (alert.category || "").toLowerCase();
+      if (lower.includes("emergency")) score = 4;
+      else if (lower.includes("outage")) score = 3;
+
       const color = getZoneColor(alert.category);
 
       alert.affected_area?.forEach((point) => {
@@ -73,21 +75,11 @@ const MapManagement = () => {
     return Array.from(locationMap.values());
   }, [activeZones]);
 
-  // Determine Pin Color (Selected > Emergency > Warning > Info > Default)
   const getResidentPinColor = (residentId) => {
-    if (selectedIds.has(residentId)) return "#2563EB"; // Blue if selected
-
+    if (selectedIds.has(residentId)) return "#2563EB";
     if (!activeZones) return "#374151";
-
-    // Find if resident is in any active alert recipient list
     const relevantAlerts = activeZones.filter(a => a.recipient_ids?.includes(residentId));
-
-    if (relevantAlerts.length === 0) return "#374151"; // Default Gray
-
-    // Sort by severity to return the most critical color
-    const severityOrder = { emergency: 3, warning: 2, info: 1 };
-    relevantAlerts.sort((a, b) => (severityOrder[b.category] || 0) - (severityOrder[a.category] || 0));
-
+    if (relevantAlerts.length === 0) return "#374151";
     return getZoneColor(relevantAlerts[0].category);
   };
 
@@ -133,17 +125,15 @@ const MapManagement = () => {
     const selectedResidentsData = residents.filter(r => selectedIds.has(r.id));
     const affectedArea = calculateZonePoints(selectedResidentsData);
 
-    let alertType = "info";
-    if (alertData.title.includes("Emergency") || alertData.title.includes("Storm")) alertType = "emergency";
-    else if (alertData.title.includes("Outage") || alertData.title.includes("Interruption")) alertType = "warning";
-
     const expiresAt = new Date(Date.now() + alertData.duration * 60 * 60 * 1000).toISOString();
+    const finalCategory = alertData.title;
 
+    setIsProcessing(true); // Add loading state
     supabase.auth.getUser().then(({ data: { user } }) => {
       createMapAlert({
         title: alertData.title,
         body: alertData.body,
-        type: alertType,
+        type: finalCategory,
         expiresAt: expiresAt,
         affectedArea: affectedArea,
         recipientIds: Array.from(selectedIds),
@@ -154,13 +144,21 @@ const MapManagement = () => {
           setSelectedIds(new Set());
           setIsSelectMode(false);
           setSelectedResident(null);
-        }
+          setIsProcessing(false);
+        },
+        onError: () => setIsProcessing(false)
       });
     });
   };
 
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <div>Loading Village Map...</div>;
+  const getModalVariant = () => {
+    const t = alertData.title.toLowerCase();
+    if (t.includes("emergency") || t.includes("storm")) return "urgent";
+    if (t.includes("outage")) return "warning";
+    return "default";
+  };
+
+  // REMOVED: if (loadError) ... if (!isLoaded) ...
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm text-center">
@@ -220,7 +218,7 @@ const MapManagement = () => {
               options={{ fillColor: "#ea580c", fillOpacity: 0.05, strokeColor: "#ea580c", strokeOpacity: 0.5, strokeWeight: 1, clickable: false }}
             />
 
-            {/* Active Alert Zones (Lighter Opacity) */}
+            {/* Active Alert Zones */}
             {uniqueCircles.map((item, index) => (
               <Circle
                 key={`circle-${index}`}
@@ -228,7 +226,7 @@ const MapManagement = () => {
                 radius={25}
                 options={{
                   fillColor: item.color,
-                  fillOpacity: 0.2, // Lighter opacity for admin
+                  fillOpacity: 0.2,
                   strokeColor: item.color,
                   strokeWeight: 1,
                   clickable: false,
@@ -284,7 +282,7 @@ const MapManagement = () => {
             )}
           </GoogleMap>
 
-          {/* Selection Dock */}
+          {/* Selection Dock & Overlays... (Kept same as original, just truncated here for brevity) */}
           {isSelectMode && (
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-lg px-6 py-3 rounded-2xl shadow-2xl border border-gray-200 flex items-center gap-6 z-10">
               <div className="flex items-end gap-1.5 text-blue-900">
@@ -305,9 +303,8 @@ const MapManagement = () => {
             </div>
           )}
 
-          {/* Mapping Overlay */}
           {residentToMap && (
-            <div className="absolute bottom-4 left-4 right-4 w-auto max-w-xs bg-white p-4 rounded-xl shadow-xl border border-orange-100 z-10">
+             <div className="absolute bottom-4 left-4 right-4 w-auto max-w-xs bg-white p-4 rounded-xl shadow-xl border border-orange-100 z-10">
               <div className="flex items-center justify-between mb-2">
                 <div className="bg-orange-100 p-1.5 rounded-full text-orange-600"><UserPlus size={18} /></div>
                 <div className="text-center flex-1">
@@ -327,11 +324,12 @@ const MapManagement = () => {
           )}
         </div>
 
+        {/* Modal Logic (Unchanged) */}
         <Modal
           isOpen={isAlertModalOpen}
           onClose={() => setIsAlertModalOpen(false)}
           title={<span className="flex items-center gap-2"><BellRing className="w-5 h-5" /> {selectedIds.size > 1 ? `Broadcast to ${selectedIds.size} Residents` : "Send Alert"}</span>}
-          variant={alertData.title.includes("Emergency") ? "urgent" : "default"}
+          variant={getModalVariant()}
         >
           <form onSubmit={handleSendAlert} className="space-y-4">
             <div>

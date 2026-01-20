@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "../../services/supabaseClient";
 import { useAlerts } from "../../hooks/useAlerts";
 import Modal from "../shared/Modal";
 import NewsCard from "../shared/NewsCard";
-import { Plus, Search, Trash2, Edit2, ChevronDown } from "lucide-react";
+import { Plus, Search, Trash2, Edit2, ChevronDown, Clock } from "lucide-react";
 import { CATEGORIES, ALERT_TYPES } from "../../data/HelperData";
 import TabButton from "../shared/TabButton";
 import ConfirmationDialog from "../shared/ConfirmationDialog";
@@ -14,8 +14,14 @@ const AlertsManagement = () => {
     createAlert,
     updateAlert,
     deleteAlert,
+    purgeExpiredAlerts, // Import the cleanup function
     isDeleting
   } = useAlerts();
+
+  // --- AUTO CLEANUP ON MOUNT ---
+  useEffect(() => {
+    purgeExpiredAlerts();
+  }, [purgeExpiredAlerts]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
@@ -38,7 +44,11 @@ const AlertsManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { data: { user } } = await supabase.auth.getUser();
-    const finalExpiresAt = formData.expires_at ? new Date(formData.expires_at).toISOString() : null;
+
+    // Ensure accurate ISO string for DB
+    const finalExpiresAt = formData.expires_at
+      ? new Date(formData.expires_at).toISOString()
+      : null;
 
     const payload = {
       title: formData.title,
@@ -109,6 +119,7 @@ const AlertsManagement = () => {
         body: alert.body,
         is_urgent: alert.is_urgent,
         image_url: alert.image_url || "",
+        // Convert UTC DB time back to local 'datetime-local' format (YYYY-MM-DDTHH:mm)
         expires_at: alert.expires_at ? new Date(alert.expires_at).toISOString().slice(0, 16) : "",
       });
     } else {
@@ -154,17 +165,35 @@ const AlertsManagement = () => {
             key={alert.id}
             alert={alert}
             footer={
-              <div className="flex justify-between items-center w-full">
-                <span className="text-gray-400 text-xs">By {alert.profiles?.full_name || "Admin"}</span>
-                <div className="flex gap-1">
-                  <button onClick={() => openModal(alert)} className="p-1.5 hover:bg-gray-100 rounded-md text-blue-600">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(alert.id)} className="p-1.5 hover:bg-gray-100 rounded-md text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+            <div className="flex justify-between items-center w-full">
+              <span className="text-gray-400 text-xs">
+                By {alert.profiles?.full_name || "Admin"}
+              </span>
+
+              <div className="flex items-center gap-2">
+                {alert.expires_at && (
+                  <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-100 px-2 py-1 rounded-md">
+                    <Clock className="w-3 h-3" />
+                    Expires: {new Date(alert.expires_at).toLocaleDateString()}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => openModal(alert)}
+                  className="p-1.5 hover:bg-gray-100 rounded-md text-blue-600"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => handleDelete(alert.id)}
+                  className="p-1.5 hover:bg-gray-100 rounded-md text-red-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
+            </div>
+
             }
           />
         ))}
@@ -212,7 +241,7 @@ const AlertsManagement = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expires At (Optional)</label>
-              <input type="datetime-local" name="expires_at" value={formData.expires_at} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm" />
+              <input type="datetime-local" name="expires_at" value={formData.expires_at} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 " />
             </div>
           </div>
 
@@ -223,7 +252,7 @@ const AlertsManagement = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Details</label>
-            <textarea required rows={4} name="body" value={formData.body} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 resize-none text-sm" placeholder="Type details..." />
+            <textarea required rows={4} name="body" value={formData.body} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 " placeholder="Type details..." />
           </div>
 
           <button type="submit" className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors shadow-sm">

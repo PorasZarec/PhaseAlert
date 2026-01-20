@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { GoogleMap, useLoadScript, Marker, Polygon, Circle } from "@react-google-maps/api";
+// REMOVED: useLoadScript
+import { GoogleMap, Marker, Polygon, Circle } from "@react-google-maps/api";
 import { useMapAlerts } from "../../hooks/useMapAlerts";
 import { getZoneColor } from "../../lib/geoUtils";
 import { VILLAGE_CENTER, VILLAGE_BOUNDARY } from "../../data/HelperData";
@@ -27,10 +28,20 @@ const MappingTab = () => {
   const uniqueCircles = useMemo(() => {
     if (!activeZones) return [];
     const locationMap = new Map();
-    const severityScore = { info: 1, warning: 2, emergency: 3 };
+    const severityScore = {
+      emergency: 4,
+      warning: 3,
+      info: 2,
+      default: 1
+    };
 
     activeZones.forEach((alert) => {
-      const score = severityScore[alert.category] || 1;
+      let score = 1;
+      const lower = (alert.category || "").toLowerCase();
+      if (lower.includes("emergency")) score = 4;
+      else if (lower.includes("outage")) score = 3;
+      else if (lower.includes("water") || lower.includes("garbage")) score = 2;
+
       const color = getZoneColor(alert.category);
 
       alert.affected_area?.forEach((point) => {
@@ -55,9 +66,7 @@ const MappingTab = () => {
     fetchMe();
   }, []);
 
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-  });
+  // REMOVED: useLoadScript hook block entirely.
 
   const mapCenter = useMemo(() => {
     if (currentUser?.latitude && currentUser?.longitude) {
@@ -68,17 +77,14 @@ const MappingTab = () => {
 
   const userStatusColor = useMemo(() => {
       if (!currentUser || !activeZones) return "#374151";
-
       const myAlerts = activeZones.filter(alert =>
         alert.recipient_ids && alert.recipient_ids.includes(currentUser.id)
       );
-
       if (myAlerts.length === 0) return "#374151";
       return getZoneColor(myAlerts[0].category);
     }, [activeZones, currentUser]);
 
-  if (loadError) return <div>Error loading map</div>;
-  if (!isLoaded || !currentUser) return <div className="flex justify-center p-10"><Loader2 className="animate-spin"/></div>;
+  if (!currentUser) return <div className="flex justify-center p-10"><Loader2 className="animate-spin"/></div>;
 
   return (
     <div className="space-y-4">
@@ -87,7 +93,7 @@ const MappingTab = () => {
           <AlertTriangle className="text-orange-600 w-5 h-5" />
           <div>
             <p className="text-sm font-bold text-gray-800">Active Warning in Area</p>
-            <p className="text-xs text-gray-600">Your location status has been updated.</p>
+            <p className="text-xs text-gray-600">Please check the map for colored zones.</p>
           </div>
         </div>
       )}
@@ -121,10 +127,14 @@ const MappingTab = () => {
           />
         </GoogleMap>
 
-        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur p-2 rounded-lg shadow-sm text-xs border border-gray-100">
-           <div className="flex items-center gap-2 mb-1"><div className="w-3 h-3 rounded-full bg-red-600"></div> Emergency</div>
-           <div className="flex items-center gap-2 mb-1"><div className="w-3 h-3 rounded-full bg-amber-500"></div> Warning</div>
-           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Advisory</div>
+        {/* Legend */}
+        <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-gray-100 text-xs z-10 space-y-2">
+           <div className="font-bold text-gray-500 mb-1">Legend</div>
+           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-600 shadow-sm"></div> Emergency</div>
+           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm"></div> Power Outage</div>
+           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm"></div> Water / Advisory</div>
+           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-purple-600 shadow-sm"></div> Garbage Collection</div>
+           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></div> Community Event</div>
         </div>
       </div>
     </div>
