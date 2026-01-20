@@ -5,11 +5,14 @@ import { toast } from 'sonner';
 export const useAlerts = () => {
   const queryClient = useQueryClient();
 
-  // --- FETCH ALERTS ---
   const fetchAlerts = async () => {
+    const now = new Date().toISOString();
+
+    // Fetch only alerts that haven't expired yet (or have no expiration)
     const { data, error } = await supabase
       .from('alerts')
       .select(`*, profiles:author_id (full_name)`)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -19,10 +22,9 @@ export const useAlerts = () => {
   const { data: alerts, isLoading, error } = useQuery({
     queryKey: ['alerts'],
     queryFn: fetchAlerts,
-    staleTime: 1000 * 60 * 5, // Cache data for 5 minutes
+    refetchInterval: 30000, // Re-check every 30s to auto-remove expired alerts
   });
 
-  // --- CREATE ALERT ---
   const createAlertMutation = useMutation({
     mutationFn: async (newAlert) => {
       const { data, error } = await supabase.from('alerts').insert([newAlert]).select();
@@ -39,7 +41,6 @@ export const useAlerts = () => {
     },
   });
 
-  // --- UPDATE ALERT ---
   const updateAlertMutation = useMutation({
     mutationFn: async ({ id, updates }) => {
       const { data, error } = await supabase
@@ -61,7 +62,6 @@ export const useAlerts = () => {
     },
   });
 
-  // --- DELETE ALERT ---
   const deleteAlertMutation = useMutation({
     mutationFn: async (id) => {
       const { error } = await supabase.from('alerts').delete().eq('id', id);

@@ -1,4 +1,3 @@
-// SIMPLIFIED: Just extracts the lat/lng from the selected residents
 export const calculateZonePoints = (residents) => {
   if (!residents || residents.length === 0) return [];
 
