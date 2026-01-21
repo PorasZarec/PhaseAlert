@@ -6,41 +6,70 @@ import {
 
 const NewsCard = ({ alert, footer }) => {
 
-  // Determine styling based on category/urgency
+  // Determine styling based on category/urgency (Synced with geoUtils.js)
   const getStyles = () => {
-    if (alert.is_urgent) {
+    // Convert to lowercase for easier matching
+    const category = (alert.category || "").toLowerCase();
+    const isUrgent = alert.is_urgent || category.includes('emergency') || category.includes('storm');
+
+    // 1. RED: Critical / Emergency / Storm -> PULSING
+    if (isUrgent) {
       return {
         container: "border-red-300 ring-1 ring-red-200",
-        header: "bg-red-600 border-red-600 animate-pulse-faster",
+        header: "bg-red-600 border-red-600 animate-pulse-faster", // Keeps your custom pulse
         iconBox: "bg-red-700 text-red-100",
         icon: <AlertTriangle className="w-5 h-5 text-red-100" />,
+        isUrgent: true // Flag to change text color to white
       };
     }
 
-    switch (alert.category) {
-      case 'Event':
-        return {
-          container: 'bg-blue-100/50 border-blue-200',
-          header: 'bg-blue-100/50 border-blue-200',
-          iconBox: 'bg-blue-100 text-blue-600',
-          icon: <Calendar className="w-5 h-5" />
-        };
-      case 'Advisory':
-        return {
-          container: 'bg-cyan-100/50 border-cyan-200',
-          header: 'bg-cyan-100/50 border-cyan-200',
-          iconBox: 'bg-cyan-100 text-cyan-600',
-          icon: <CircleAlert className="w-5 h-5" />
-        };
-      case 'News':
-      default:
-        return {
-          container: 'bg-amber-100/50 border-amber-200',
-          header: 'bg-amber-100/50 border-amber-200',
-          iconBox: 'bg-orange-100 text-orange-600',
-          icon: <Megaphone className="w-5 h-5" />
-        };
+    // 2. AMBER: Power / Outage / Warning
+    if (category.includes('outage') || category.includes('warning')) {
+      return {
+        container: 'bg-amber-100/50 border-amber-200',
+        header: 'bg-amber-100/50 border-amber-200',
+        iconBox: 'bg-orange-100 text-orange-600',
+        icon: <Megaphone className="w-5 h-5" />
+      };
     }
+
+    // 3. BLUE: Water / Services
+    if (category.includes('water') || category.includes('interruption')) {
+      return {
+        container: 'bg-blue-100/50 border-blue-200',
+        header: 'bg-blue-100/50 border-blue-200',
+        iconBox: 'bg-blue-100 text-blue-600',
+        icon: <CircleAlert className="w-5 h-5" />
+      };
+    }
+
+    // 4. PURPLE: Garbage / Collection
+    if (category.includes('garbage') || category.includes('collection')) {
+      return {
+        container: 'bg-purple-100/50 border-purple-200',
+        header: 'bg-purple-100/50 border-purple-200',
+        iconBox: 'bg-purple-100 text-purple-600',
+        icon: <Clock className="w-5 h-5" />
+      };
+    }
+
+    // 5. GREEN: Event / Community
+    if (category.includes('event') || category.includes('assembly') || category.includes('community')) {
+      return {
+        container: 'bg-emerald-100/50 border-emerald-200',
+        header: 'bg-emerald-100/50 border-emerald-200',
+        iconBox: 'bg-emerald-100 text-emerald-600',
+        icon: <Calendar className="w-5 h-5" />
+      };
+    }
+
+    // DEFAULT: General Info (Teal/Cyan)
+    return {
+      container: 'bg-cyan-100/50 border-cyan-200',
+      header: 'bg-cyan-100/50 border-cyan-200',
+      iconBox: 'bg-cyan-100 text-cyan-600',
+      icon: <CircleAlert className="w-5 h-5" />
+    };
   };
 
   const styles = getStyles();
@@ -55,13 +84,13 @@ const NewsCard = ({ alert, footer }) => {
           </div>
           <div>
           <h3 className={`font-semibold line-clamp-1
-            ${alert.is_urgent ? "text-white" : "text-gray-800"}`}
+            ${styles.isUrgent ? "text-white" : "text-gray-800"}`}
           >
             {alert.title}
           </h3>
 
             <p className={`text-xs capitalize
-              ${alert.is_urgent ? "text-white" : "text-gray-500"}`}
+              ${styles.isUrgent ? "text-white" : "text-gray-500"}`}
             >
               {alert.category} • {new Date(alert.created_at).toLocaleDateString()}
             </p>
@@ -82,16 +111,9 @@ const NewsCard = ({ alert, footer }) => {
         <p className="text-gray-600 text-sm line-clamp-4 whitespace-pre-line">
           {alert.body}
         </p>
-
-        {/* {alert.expires_at && (
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 w-fit px-2 py-1 rounded-md">
-            <Clock className="w-3 h-3" />
-            Expires: {new Date(alert.expires_at).toLocaleDateString()}
-          </div>
-        )}*/}
       </div>
 
-      {/* Footer Section (Dynamic) */}
+      {/* Footer Section */}
       <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs">
         {footer ? footer : (
            <span className="text-gray-400">By {alert.profiles?.name || "Admin"}</span>

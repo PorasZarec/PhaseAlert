@@ -30,7 +30,10 @@ export const useMapAlerts = () => {
 
   // 2. CREATE MAP ALERT (Admin View)
   const createMapAlertMutation = useMutation({
-  mutationFn: async ({ title, body, type, affectedArea, recipientIds, senderId, expiresAt }) => {
+		mutationFn: async ({ title, body, type, affectedArea, recipientIds, senderId, expiresAt }) => {
+			const lowerType = type.toLowerCase();
+			const isUrgent = lowerType.includes('emergency') || lowerType.includes('storm');
+
     const { data: alertData, error: alertError } = await supabase
       .from('alerts')
       .insert({
@@ -41,7 +44,7 @@ export const useMapAlerts = () => {
         affected_area: affectedArea,
         recipient_ids: recipientIds,
         author_id: senderId,
-        is_urgent: type === 'emergency',
+        is_urgent: isUrgent,
       })
       .select()
       .single();
