@@ -142,8 +142,8 @@ const InboxManagement = () => {
               placeholder="Search residents..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 text-sm rounded-lg 
-                          focus:ring-2 focus:ring-amber-500 focus:border-amber-500 
+              className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 text-sm rounded-lg
+                          focus:ring-2 focus:ring-amber-500 focus:border-amber-500
                           outline-none transition duration-200"
             />
           </div>

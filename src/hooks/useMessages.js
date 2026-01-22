@@ -4,9 +4,11 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 
 // --- FETCHER FUNCTION ---
+// useMessages.js
+
 const fetchMessages = async ({ queryKey }) => {
   const [_, { tab, currentUserId, otherUserId }] = queryKey;
-  
+
   if (!currentUserId) return [];
 
   // Base Query
@@ -24,18 +26,25 @@ const fetchMessages = async ({ queryKey }) => {
   if (tab === 'community') {
     // Community: Receiver is NULL
     query = query.is('receiver_id', null);
-  } 
+  }
   else if (tab === 'admin_support') {
-    // Resident View: Chats with ANY Admin
+    // Resident View: Chats with ANY Admin (This is already correct)
     query = query.or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`);
-  } 
+    // Optional: add .not('receiver_id', 'is', null) here if community posts appear in support
+  }
   else if (tab === 'direct' && otherUserId) {
-    // Admin View: Direct Chat with Specific Resident
-    query = query.or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${currentUserId})`);
+    // --- THE FIX ---
+    // Instead of filtering for "Me <-> Resident", we filter for:
+    // "Resident is Sender OR Resident is Receiver"
+    // AND "Receiver is NOT NULL" (to exclude community posts)
+
+    query = query
+      .or(`sender_id.eq.${otherUserId},receiver_id.eq.${otherUserId}`)
+      .not('receiver_id', 'is', null);
   }
 
   const { data, error } = await query;
-  
+
   if (error) {
     console.error("Fetch Messages Error:", error);
     throw error;
@@ -58,7 +67,7 @@ export const useMessages = (tab, currentUserId, otherUserId = null) => {
     queryKey,
     queryFn: fetchMessages,
     enabled: !!currentUserId && (tab !== 'direct' || !!otherUserId),
-    staleTime: 0, 
+    staleTime: 0,
   });
 
   // Realtime Subscription

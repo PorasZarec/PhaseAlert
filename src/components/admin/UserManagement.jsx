@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Search,
   Trash2,
@@ -15,10 +15,15 @@ import {
 import Modal from "../shared/Modal";
 import { useUsers } from "../../hooks/useUsers";
 import TabButton from "../shared/TabButton";
-import ConfirmationDialog from "../shared/ConfirmationDialog"; //
+import ConfirmationDialog from "../shared/ConfirmationDialog";
+import { supabase } from '../../services/supabaseClient';
+import { toast } from 'sonner';
 
 const UserManagement = () => {
-  const { users, isLoading, createUser, updateUser, deleteUser, isDeleting, isUpdating } = useUsers();
+  const { users, isLoading, createUser, updateUser, deleteUser, isDeleting, isUpdating, isCreating } = useUsers();
+
+  // Locate the User ID from the session
+  const [sessionUserId, setSessionUserId] = useState(null);
 
   // Local UI State
   const [activeTab, setActiveTab] = useState("resident");
@@ -31,7 +36,7 @@ const UserManagement = () => {
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState(null); // 'delete' or 'reset'
-  const [targetId, setTargetId] = useState(null); // ID of user to delete or reset
+  const [targetId, setTargetId] = useState(null);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -77,7 +82,7 @@ const UserManagement = () => {
       address_block: user.address_block || "",
       address_lot: user.address_lot || "",
       phone: user.phone || "",
-      password: "",
+      password: "", // Reset password field for security
     });
     setIsModalOpen(true);
   };
@@ -87,37 +92,73 @@ const UserManagement = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // --- FRONTEND VALIDATION ---
+  const validateForm = () => {
+    // 1. Check Email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error("Please enter a valid email address.");
+      return false;
+    }
+
+    // 2. Check Password (Only for new users)
+    if (!currentUser) {
+       if (!formData.password || formData.password.length < 6) {
+         toast.error("Password must be at least 6 characters.");
+         return false;
+       }
+    }
+
+    return true;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const sanitizedData = {
+    // 1. Run Validation
+    if (!validateForm()) return;
+
+    // 2. Prepare Data (Handle '0' vs Empty String)
+    const payload = {
       ...formData,
-      address_block: formData.address_block ? parseInt(formData.address_block) : null,
-      address_lot: formData.address_lot ? parseInt(formData.address_lot) : null,
+      address_block: formData.address_block === "" ? null : formData.address_block,
+      address_lot: formData.address_lot === "" ? null : formData.address_lot,
       id: currentUser?.id,
     };
 
+    // 3. Submit (Single Call Logic)
     if (currentUser) {
-      updateUser(sanitizedData, {
+      updateUser(payload, {
         onSuccess: () => setIsModalOpen(false),
       });
     } else {
-      createUser(sanitizedData, {
+      createUser(payload, {
         onSuccess: () => setIsModalOpen(false),
       });
     }
   };
 
   // --- DIALOG HANDLERS ---
-
-  // 1. Trigger Delete
   const handleDeleteClick = (userId) => {
+    if (userId === sessionUserId) {
+      toast.error("You cannot delete your own account.");
+      return;
+    }
+
+    const userToDelete = users.find(u => u.id === userId);
+    if (userToDelete?.role === 'admin') {
+      const adminCount = users.filter(u => u.role === 'admin').length;
+      if (adminCount <= 1) {
+        toast.error("System must have at least one administrator.");
+        return;
+      }
+    }
+
     setTargetId(userId);
     setConfirmationAction("delete");
     setDialogOpen(true);
   };
 
-  // 2. Trigger Reset Location
   const handleResetLocationClick = () => {
     if (!currentUser) return;
     setTargetId(currentUser.id);
@@ -125,7 +166,6 @@ const UserManagement = () => {
     setDialogOpen(true);
   };
 
-  // 3. Confirm Logic (Switches based on action)
   const handleConfirmAction = () => {
     if (confirmationAction === "delete") {
       deleteUser(targetId, {
@@ -134,14 +174,13 @@ const UserManagement = () => {
       });
     } else if (confirmationAction === "reset") {
       updateUser({
-        ...formData, // Keep existing form data to avoid overwriting with blanks
+        ...formData,
         id: targetId,
         latitude: null,
         longitude: null
       }, {
         onSuccess: () => {
           setDialogOpen(false);
-          // Update local state to hide the button immediately in the modal
           setCurrentUser(prev => ({ ...prev, latitude: null, longitude: null }));
         },
         onError: () => setDialogOpen(false)
@@ -149,7 +188,14 @@ const UserManagement = () => {
     }
   };
 
-  // Dynamic Dialog Content
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setSessionUserId(user?.id);
+    };
+    getSession();
+  }, []);
+
   const getDialogContent = () => {
     if (confirmationAction === "reset") {
       return {
@@ -166,6 +212,7 @@ const UserManagement = () => {
   };
 
   const dialogContent = getDialogContent();
+  const isBusy = isLoading || isCreating || isUpdating || isDeleting;
 
   return (
     <div className="space-y-4">
@@ -254,7 +301,12 @@ const UserManagement = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
-                        <ActionButton onClick={() => handleDeleteClick(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
+                        <ActionButton
+                            onClick={() => handleDeleteClick(u.id)}
+                            disabled={u.id === sessionUserId}
+                            icon={<Trash2 className="w-4 h-4" />}
+                            color={u.id === sessionUserId ? "text-gray-300 bg-gray-100 cursor-not-allowed" : "text-red-500 bg-red-50 hover:bg-red-200"}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -266,39 +318,39 @@ const UserManagement = () => {
 
         {/* MOBILE CARDS */}
         {!isLoading && filteredUsers.length > 0 && (
-          <div className="md:hidden divide-y divide-gray-100">
-            {filteredUsers.map((u) => (
-              <div key={u.id} className="p-4 space-y-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={u.full_name} />
-                    <div>
-                      <p className="font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
-                      <RoleBadge role={u.role} />
+            <div className="md:hidden divide-y divide-gray-100">
+                {filteredUsers.map((u) => (
+                    <div key={u.id} className="p-4 space-y-3">
+                        <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                                <Avatar name={u.full_name} />
+                                <div>
+                                    <p className="font-medium text-gray-900">{u.full_name || "Unnamed"}</p>
+                                    <RoleBadge role={u.role} />
+                                </div>
+                            </div>
+                            <div className="flex gap-1">
+                                <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
+                                <ActionButton onClick={() => handleDeleteClick(u.id)} disabled={u.id === sessionUserId} icon={<Trash2 className="w-4 h-4" />} color={u.id === sessionUserId ? "text-gray-300 bg-gray-100 cursor-not-allowed" : "text-red-500 bg-red-50 hover:bg-red-200"} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <Mail className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="truncate">{u.email}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                                <span>{u.address_block ? `B:${u.address_block} L:${u.address_lot}` : "N/A"}</span>
+                            </div>
+                            <div className="col-span-2 flex items-center gap-2">
+                                <Phone className="w-3.5 h-3.5 text-gray-400" />
+                                <span>{u.phone || "No Phone"}</span>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <ActionButton onClick={() => openEditModal(u)} icon={<Edit2 className="w-4 h-4" />} color="text-blue-500 bg-blue-50 hover:bg-blue-200" />
-                    <ActionButton onClick={() => handleDeleteClick(u.id)} icon={<Trash2 className="w-4 h-4" />} color="text-red-500 bg-red-50 hover:bg-red-200" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="truncate">{u.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{u.address_block ? `B:${u.address_block} L:${u.address_lot}` : "N/A"}</span>
-                  </div>
-                  <div className="col-span-2 flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{u.phone || "No Phone"}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                ))}
+            </div>
         )}
       </div>
 
@@ -326,6 +378,7 @@ const UserManagement = () => {
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Password</label>
               <input name="password" type="password" required value={formData.password} onChange={handleChange} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition duration-200" placeholder="Min. 6 characters" />
+              <p className="text-xs text-gray-400">Must be at least 6 characters</p>
             </div>
           )}
 
@@ -348,7 +401,6 @@ const UserManagement = () => {
             </div>
           </div>
 
-          {/* RESET LOCATION BUTTON (Opens Confirmation Dialog) */}
           {currentUser && currentUser.latitude && (
              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
                 <div className="text-xs text-gray-600">
@@ -382,14 +434,14 @@ const UserManagement = () => {
 
           <div className="pt-4 flex gap-3">
             <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-            <button type="submit" className="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium">
-              {currentUser ? "Save Changes" : "Create User"}
+            <button type="submit" disabled={isBusy} className="flex-1 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium disabled:opacity-70 disabled:cursor-not-allowed">
+              {isBusy ? "Processing..." : (currentUser ? "Save Changes" : "Create User")}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* --- CONFIRMATION DIALOG (Shared for Delete & Reset) --- */}
+      {/* --- CONFIRMATION DIALOG --- */}
       <ConfirmationDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -417,8 +469,8 @@ const RoleBadge = ({ role }) => (
   </span>
 );
 
-const ActionButton = ({ onClick, icon, color }) => (
-  <button onClick={onClick} className={`p-2 rounded-lg transition-colors ${color}`}>
+const ActionButton = ({ onClick, icon, color, disabled }) => (
+  <button onClick={onClick} disabled={disabled} className={`p-2 rounded-lg transition-colors ${color}`}>
     {icon}
   </button>
 );
