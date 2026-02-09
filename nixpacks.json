@@ -2,7 +2,7 @@
   "providers": ["node"],
   "phases": {
     "setup": {
-      "nixPkgs": ["nodejs_22", "npm"]
+      "nixPkgs": ["nodejs_22"]
     },
     "install": {
       "cmds": ["npm install"]
