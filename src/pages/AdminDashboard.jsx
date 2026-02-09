@@ -10,13 +10,13 @@ import AlertsManagement from "../components/admin/AlertsManagement";
 import InboxManagement from "../components/admin/InboxManagement";
 import MapManagement from "../components/admin/MapManagement";
 import AnalyticsPreview from "../components/admin/AnalyticsPreview";
-import { GoogleMapsLoader } from "../components/shared/GoogleMapsLoader"; // IMPORT THIS
+import { GoogleMapsLoader } from "../components/shared/GoogleMapsLoader";
 
 const AdminDashboard = () => {
   const { user: currentUser, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // FIX: Use activeModule consistently. Default to "analytics"
+  // Default to "analytics"
   const [activeModule, setActiveModule] = useState(() => {
     return localStorage.getItem("adminActiveTab") || "analytics";
   });
@@ -81,9 +81,7 @@ const AdminDashboard = () => {
                 {activeModule === "map" && "Village Mapping"}
               </h1>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-amber-600 font-bold">A</div>
-            </div>
+
           </div>
         </header>
 
