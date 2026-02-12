@@ -8,12 +8,12 @@ import DSRM_LOGO from "../../assets/DSRM.png";
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -26,15 +26,11 @@ const LoginPage = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    console.log("Step 1: Button Clicked")
-
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
-      console.log("Step 2: Auth Result", { data, authError });
 
       if (authError) throw authError;
 
@@ -43,8 +39,6 @@ const LoginPage = () => {
         .select('role')
         .eq('id', data.user.id)
         .single();
-
-      console.log("Step 3: Profile Fetch", { profile, profileError });
 
       if (profileError) {
         console.error("Profile error:", profileError);
@@ -77,7 +71,7 @@ const LoginPage = () => {
         <div className="w-full max-w-md">
           {/* Login Card */}
           <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-10">
-            
+
             {/* Header / Logo Section */}
             <div className="mb-6 text-center">
               <div className="mb-4 flex justify-center">

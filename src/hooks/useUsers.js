@@ -90,9 +90,6 @@ export const useUsers = () => {
   // --- DELETE ---
     const deleteUserMutation = useMutation({
       mutationFn: async (userId) => {
-        console.log("Deleting User ID:", userId);
-
-        // 1. Call the Edge Function
         const { data, error } = await supabase.functions.invoke('delete-user', {
           body: { user_id: userId }
         });

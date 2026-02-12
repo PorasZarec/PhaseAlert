@@ -29,7 +29,6 @@ serve(async (req) => {
 
     // 3. Parse Data
     const { user_id } = await req.json()
-    console.log(`Attempting to delete Auth User: ${user_id}`)
 
     if (!user_id) {
       throw new Error("Missing user_id in request body")
@@ -53,9 +52,6 @@ serve(async (req) => {
       console.error("Profile Delete Failed:", dbError)
       // We don't throw here, because the Auth user is already gone, which is the important part.
     }
-
-    console.log(`Successfully deleted user ${user_id}`)
-
     return new Response(JSON.stringify({ message: "User deleted successfully" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

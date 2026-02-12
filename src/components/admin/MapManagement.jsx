@@ -158,8 +158,6 @@ const MapManagement = () => {
     return "default";
   };
 
-  // REMOVED: if (loadError) ... if (!isLoaded) ...
-
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm text-center">
       <div className="relative h-[calc(100vh-10rem)] flex flex-col gap-4">
